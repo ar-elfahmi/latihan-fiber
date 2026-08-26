@@ -19,13 +19,6 @@ func okList(c *fiber.Ctx, message string, data any, meta *Meta) error {
 	})
 }
 
-func created(c *fiber.Ctx, message string, data any, location string) error {
-	c.Set("Location", location)
-	return c.Status(fiber.StatusCreated).JSON(WebResponse{
-		Success: true, Message: message, Data: data,
-	})
-}
-
 func noContent(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -42,6 +35,13 @@ func failValidation(c *fiber.Ctx, errs map[string]string) error {
 
 var allowedSort = map[string]bool{
 	"id": true, "nim": true, "name": true, "grade": true, "created_at": true,
+}
+
+func created(c *fiber.Ctx, message string, data any, location string) error {
+	c.Set("Location", location)
+	return c.Status(fiber.StatusCreated).JSON(WebResponse{
+		Success: true, Message: message, Data: data,
+	})
 }
 
 func parseListQuery(c *fiber.Ctx) ListQuery {
