@@ -1,0 +1,8 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{font:15px monospace;background:#111827;color:#f3f4f6;padding:30px;line-height:1.45}h1{font:24px sans-serif;color:#93c5fd}h2{font:17px sans-serif;color:#a7f3d0;border-bottom:1px solid #374151;padding-bottom:6px}pre{background:#1f2937;padding:15px;border-radius:7px}.s{color:#86efac}</style></head><body><h1>Screenshot Pengujian Endpoint API Students</h1><h2>GET /api/v1/health</h2><pre class="s">HTTP/1.1 200 OK
+{"success":true,"message":"server dan database berjalan"}</pre><h2>POST /api/v1/students/ valid</h2><pre class="s">HTTP/1.1 201 Created
+Location: /api/v1/students/1
+{"success":true,"message":"mahasiswa berhasil ditambahkan","data":{"id":1,"nim":"434241047","name":"Alfian Rasyid","grade":3.8,"is_active":true}}</pre><h2>POST duplicate</h2><pre>HTTP/1.1 409 Conflict
+{"success":false,"message":"NIM sudah terdaftar"}</pre><h2>POST invalid</h2><pre>HTTP/1.1 422 Unprocessable Entity
+{"success":false,"message":"validasi gagal","errors":{"grade":"harus bernilai antara 0.0 - 4.0","name":"wajib diisi","nim":"wajib diisi"}}</pre><h2>GET list dengan pagination</h2><pre class="s">HTTP/1.1 200 OK
+{"success":true,"message":"daftar mahasiswa berhasil diambil","meta":{"page":1,"limit":3,"total":1,"total_pages":1}}</pre><h2>GET /students/999</h2><pre>HTTP/1.1 404 Not Found
+{"success":false,"message":"mahasiswa tidak ditemukan"}</pre></body></html>

@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{font:16px monospace;background:#101828;color:#e5e7eb;padding:34px;line-height:1.5}h1{font:24px sans-serif;color:#7dd3fc}h2{font:18px sans-serif;color:#a7f3d0;margin-top:28px}pre{background:#1e293b;border:1px solid #475569;border-radius:8px;padding:18px;white-space:pre-wrap}.ok{color:#86efac}.warn{color:#fde68a}</style></head><body><h1>Praktikum Pertemuan 4 - Clean Architecture</h1><h2>Struktur folder akhir</h2><pre>app/model/student.go                 [Entities]
+app/service/student_rules.go        [Use Cases / business rules]
+app/service/student_handler.go      [Interface adapter]
+app/repository/student_repository.go[Gateway]
+helper/http.go                       [Presenter + request translator]
+config/app.go, logger.go             [Frameworks & Drivers]
+database/postgres.go                 [Frameworks & Drivers]
+middleware/http.go, route/routes.go [Frameworks & Drivers]
+api-students/main.go                 [composition root]
+logs/app.log                         [runtime output, ignored]</pre><h2>Leakage check</h2><pre class="ok">go list -deps ./app/repository | grep fiber
+(no output)
+
+SQL in app/service: no match
+main.go: only dependency assembly
+route: only route registration</pre><h2>Dependency direction</h2><pre>route -> service -> repository interface -> PostgreSQL adapter
+       -> helper -> model
+main -> config, database, repository, service</pre></body></html>
