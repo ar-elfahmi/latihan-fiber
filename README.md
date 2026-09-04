@@ -29,14 +29,28 @@ Teknologi yang dipakai:
 ## Struktur Proyek
 
 ```
-api-students/        entry point API: main, handler, helper
-app/model/           struct Student, request/response, dan ListQuery
-app/repository/      interface StudentRepository dan implementasi PostgreSQL
-config/              pembacaan variabel environment dari .env
+api-students/        entry point API dan composition root
+app/model/           entities: Student, request/response, dan ListQuery
+app/service/         use case, business rules, dan HTTP handler
+app/repository/      kontrak dan implementasi PostgreSQL
+config/              perakitan Fiber, environment, dan logger JSON
 database/            pembuatan connection pool PostgreSQL
+helper/              presenter response dan pembaca request
+middleware/          middleware global RequireJSON
+route/               pendaftaran endpoint tanpa business rules
 migrations/          berkas SQL untuk pembuatan tabel
 tugas 1/             file latihan pertemuan 1, tidak ikut proses build
 ```
+
+## Clean Architecture
+
+Restrukturisasi pertemuan 4 memisahkan entity, business rules, adapter HTTP,
+repository, konfigurasi, middleware, dan route. Dependency kode diarahkan ke
+dalam: route memanggil service, service memakai interface repository, dan
+implementasi PostgreSQL berada di luar. Business rules pada
+`app/service/student_rules.go` tidak mengimpor Fiber sehingga dapat diuji tanpa
+menyalakan server atau database. Laporan dan screenshot praktik tersedia di
+`docs/Tugas4_434241047.md`.
 
 ## Skema Tabel
 
