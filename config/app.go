@@ -20,6 +20,6 @@ func NewApp(logger *slog.Logger, s *service.StudentService, pool *pgxpool.Pool) 
 		logger.Info("request", slog.String("request_id", id), slog.String("method", c.Method()), slog.String("path", c.Path()), slog.Int("status", c.Response().StatusCode()), slog.Int64("duration_ms", time.Since(start).Milliseconds()))
 		return e
 	})
-	route.Register(app, s, pool)
+	route.Register(app, pool, s)
 	return app
 }
