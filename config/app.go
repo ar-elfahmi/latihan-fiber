@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func NewApp(logger *slog.Logger, h *service.StudentHandler, pool *pgxpool.Pool) *fiber.App {
+func NewApp(logger *slog.Logger, s *service.StudentService, pool *pgxpool.Pool) *fiber.App {
 	app := fiber.New(fiber.Config{AppName: "Tugas Mandiri REST API Students"})
 	app.Use(func(c *fiber.Ctx) error {
 		start := time.Now()
@@ -20,6 +20,6 @@ func NewApp(logger *slog.Logger, h *service.StudentHandler, pool *pgxpool.Pool) 
 		logger.Info("request", slog.String("request_id", id), slog.String("method", c.Method()), slog.String("path", c.Path()), slog.Int("status", c.Response().StatusCode()), slog.Int64("duration_ms", time.Since(start).Milliseconds()))
 		return e
 	})
-	route.Register(app, h, pool)
+	route.Register(app, s, pool)
 	return app
 }

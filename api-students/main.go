@@ -22,7 +22,7 @@ func main() {
 	}
 	defer closeLog()
 	repo := repository.NewStudentRepository(pool)
-	handler := service.NewStudentHandler(repo)
+	handler := service.NewStudentService(repo)
 	app := config.NewApp(logger, handler, pool)
 	log.Fatal(app.Listen(":" + config.GetEnv("APP_PORT", "3000")))
 }

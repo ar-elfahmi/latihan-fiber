@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func Register(app *fiber.App, h *service.StudentHandler, pool *pgxpool.Pool) {
+func Register(app *fiber.App, s *service.StudentService, pool *pgxpool.Pool) {
 	app.Get("/api/v1/health", func(c *fiber.Ctx) error {
 		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
 		defer cancel()
@@ -20,11 +20,11 @@ func Register(app *fiber.App, h *service.StudentHandler, pool *pgxpool.Pool) {
 		return helper.Success(c, fiber.StatusOK, "server dan database berjalan", nil)
 	})
 	g := app.Group("/api/v1/students", middleware.RequireJSON)
-	g.Get("/", h.List)
-	g.Get("/:id", h.Get)
-	g.Post("/", h.Create)
-	g.Put("/:id", h.Replace)
-	g.Patch("/:id", h.Patch)
-	g.Delete("/:id", h.Delete)
+	g.Get("/", s.List)
+	g.Get("/:id", s.Get)
+	g.Post("/", s.Create)
+	g.Put("/:id", s.Replace)
+	g.Patch("/:id", s.Patch)
+	g.Delete("/:id", s.Delete)
 	app.Use(func(c *fiber.Ctx) error { return helper.Fail(c, 404, "endpoint tidak ditemukan") })
 }
