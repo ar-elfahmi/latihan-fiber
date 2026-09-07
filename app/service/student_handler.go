@@ -22,7 +22,7 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 	if e != nil {
 		return helper.Fail(c, 500, "gagal mengambil daftar mahasiswa")
 	}
-	return helper.OKList(c, "daftar mahasiswa berhasil diambil", items, &model.Meta{Page: q.Page, Limit: q.Limit, Total: total, TotalPages: CountTotalPages(total, q.Limit)})
+	return helper.SuccessList(c, "daftar mahasiswa berhasil diambil", items, &model.Meta{Page: q.Page, Limit: q.Limit, Total: total, TotalPages: CountTotalPages(total, q.Limit)})
 }
 func (h *StudentHandler) Get(c *fiber.Ctx) error {
 	id, ok := helper.ParamID(c)
@@ -38,7 +38,7 @@ func (h *StudentHandler) Get(c *fiber.Ctx) error {
 	if e != nil {
 		return helper.Fail(c, 500, "gagal mengambil mahasiswa")
 	}
-	return helper.OK(c, "mahasiswa ditemukan", s)
+	return helper.Success(c, fiber.StatusOK, "mahasiswa ditemukan", s)
 }
 func (h *StudentHandler) Create(c *fiber.Ctx) error {
 	var r model.CreateStudentRequest
@@ -83,7 +83,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 	if e != nil {
 		return helper.Fail(c, 500, "gagal memperbarui mahasiswa")
 	}
-	return helper.OK(c, "data mahasiswa berhasil diganti seluruhnya", s)
+	return helper.Success(c, fiber.StatusOK, "data mahasiswa berhasil diganti seluruhnya", s)
 }
 func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 	id, ok := helper.ParamID(c)
@@ -117,7 +117,7 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 	if e != nil {
 		return helper.Fail(c, 500, "gagal memperbarui mahasiswa")
 	}
-	return helper.OK(c, "data mahasiswa berhasil diperbarui sebagian", s)
+	return helper.Success(c, fiber.StatusOK, "data mahasiswa berhasil diperbarui sebagian", s)
 }
 func (h *StudentHandler) Delete(c *fiber.Ctx) error {
 	id, ok := helper.ParamID(c)

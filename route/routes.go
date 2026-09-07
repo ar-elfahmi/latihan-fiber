@@ -17,7 +17,7 @@ func Register(app *fiber.App, h *service.StudentHandler, pool *pgxpool.Pool) {
 		if e := pool.Ping(ctx); e != nil {
 			return helper.Fail(c, 503, "database tidak dapat dihubungi")
 		}
-		return helper.OK(c, "server dan database berjalan", nil)
+		return helper.Success(c, fiber.StatusOK, "server dan database berjalan", nil)
 	})
 	g := app.Group("/api/v1/students", middleware.RequireJSON)
 	g.Get("/", h.List)
