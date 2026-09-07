@@ -1,70 +1,102 @@
 package service
 
 import (
-	"latihan-fiber/app/model"
 	"strings"
+
+	"latihan-fiber/app/model"
 )
 
-func ValidateCreate(r model.CreateStudentRequest) map[string]string {
-	e := map[string]string{}
-	r.NIM = strings.TrimSpace(r.NIM)
-	r.Name = strings.TrimSpace(r.Name)
-	if r.NIM == "" {
-		e["nim"] = "wajib diisi"
+// File ini berisi business rules MURNI: tidak menyentuh fiber.Ctx,
+// tidak menyentuh database, dan tidak tahu apa pun tentang HTTP.
+// Seluruh fungsi di sini dapat diuji hanya dengan memanggilnya.
+
+// ValidateCreate memeriksa isi permintaan pembuatan mahasiswa (POST).
+// Mengembalikan peta berisi field yang bermasalah; kosong berarti lolos.
+func ValidateCreate(req model.CreateStudentRequest) map[string]string {
+	errs := map[string]string{}
+
+	if strings.TrimSpace(req.NIM) == "" {
+		errs["nim"] = "wajib diisi"
 	}
-	if r.Name == "" {
-		e["name"] = "wajib diisi"
+
+	if strings.TrimSpace(req.Name) == "" {
+		errs["name"] = "wajib diisi"
 	}
-	if r.Grade < 0 || r.Grade > 4 {
-		e["grade"] = "harus bernilai antara 0.0 - 4.0"
+
+	if req.Grade < 0 || req.Grade > 4 {
+		errs["grade"] = "harus bernilai antara 0.0 - 4.0"
 	}
-	return e
+
+	return errs
 }
-func ValidateUpdate(r model.ReplaceStudentRequest) map[string]string {
-	e := map[string]string{}
-	if strings.TrimSpace(r.NIM) == "" {
-		e["nim"] = "wajib diisi pada PUT"
+
+// ValidateUpdate memeriksa isi permintaan PUT.
+// Seluruh field wajib ada karena PUT mengganti isi secara keseluruhan.
+func ValidateUpdate(req model.ReplaceStudentRequest) map[string]string {
+	errs := map[string]string{}
+
+	if strings.TrimSpace(req.NIM) == "" {
+		errs["nim"] = "wajib diisi pada PUT"
 	}
-	if strings.TrimSpace(r.Name) == "" {
-		e["name"] = "wajib diisi pada PUT"
+
+	if strings.TrimSpace(req.Name) == "" {
+		errs["name"] = "wajib diisi pada PUT"
 	}
-	if r.Grade < 0 || r.Grade > 4 {
-		e["grade"] = "harus bernilai antara 0.0 - 4.0"
+
+	if req.Grade < 0 || req.Grade > 4 {
+		errs["grade"] = "harus bernilai antara 0.0 - 4.0"
 	}
-	return e
+
+	return errs
 }
-func ApplyPatch(s model.Student, r model.PatchStudentRequest) (model.Student, map[string]string) {
-	e := map[string]string{}
-	if r.NIM != nil {
-		v := strings.TrimSpace(*r.NIM)
-		if v == "" {
-			e["nim"] = "tidak boleh kosong"
+
+// ApplyPatch menyalin field yang dikirim ke data yang sudah ada.
+// Field yang bernilai nil dibiarkan apa adanya.
+func ApplyPatch(
+	current model.Student, req model.PatchStudentRequest,
+) (model.Student, map[string]string) {
+	errs := map[string]string{}
+
+	if req.NIM != nil {
+		if v := strings.TrimSpace(*req.NIM); v == "" {
+			errs["nim"] = "tidak boleh kosong"
 		} else {
-			s.NIM = v
+			current.NIM = v
 		}
 	}
-	if r.Name != nil {
-		v := strings.TrimSpace(*r.Name)
-		if v == "" {
-			e["name"] = "tidak boleh kosong"
+
+	if req.Name != nil {
+		if v := strings.TrimSpace(*req.Name); v == "" {
+			errs["name"] = "tidak boleh kosong"
 		} else {
-			s.Name = v
+			current.Name = v
 		}
 	}
-	if r.Grade != nil {
-		if *r.Grade < 0 || *r.Grade > 4 {
-			e["grade"] = "harus bernilai antara 0.0 - 4.0"
+
+	if req.Grade != nil {
+		if *req.Grade < 0 || *req.Grade > 4 {
+			errs["grade"] = "harus bernilai antara 0.0 - 4.0"
 		} else {
-			s.Grade = *r.Grade
+			current.Grade = *req.Grade
 		}
 	}
-	if r.IsActive != nil {
-		s.IsActive = *r.IsActive
+
+	if req.IsActive != nil {
+		current.IsActive = *req.IsActive
 	}
-	return s, e
+
+	return current, errs
 }
+
+// IsEmptyPatch menandai permintaan PATCH yang tidak mengubah apa pun.
+func IsEmptyPatch(req model.PatchStudentRequest) bool {
+	return req.NIM == nil && req.Name == nil &&
+		req.Grade == nil && req.IsActive == nil
+}
+
+// CountTotalPages membulatkan ke atas tanpa memakai bilangan pecahan.
 func CountTotalPages(total, limit int) int {
-	if total == 0 {
+	if limit <= 0 {
 		return 0
 	}
 	return (total + limit - 1) / limit
