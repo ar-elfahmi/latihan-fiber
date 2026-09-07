@@ -29,17 +29,17 @@ Teknologi yang dipakai:
 ## Struktur Proyek
 
 ```
-api-students/        entry point API dan composition root
+main.go              entry point: urutan perakitan dan graceful shutdown
 app/model/           entities: Student, request/response, dan ListQuery
 app/service/         use case, business rules, dan HTTP handler
 app/repository/      kontrak dan implementasi PostgreSQL
 config/              perakitan Fiber, environment, dan logger JSON
 database/            pembuatan connection pool PostgreSQL
 helper/              presenter response dan pembaca request
-middleware/          middleware global RequireJSON
+middleware/          middleware global (requestid, recover, helmet, cors, logger, RequireJSON)
 route/               pendaftaran endpoint tanpa business rules
 migrations/          berkas SQL untuk pembuatan tabel
-tugas 1/             file latihan pertemuan 1, tidak ikut proses build
+archive/             file latihan pertemuan 1, tidak ikut proses build
 ```
 
 ## Clean Architecture
@@ -141,7 +141,7 @@ Laragon), dan Git.
 6. Jalankan API-nya:
 
    ```
-   go run ./api-students
+   go run .
    ```
 
 7. Buka `http://localhost:3000/api/v1/health`. Kalau muncul pesan

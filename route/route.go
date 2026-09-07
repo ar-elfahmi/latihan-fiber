@@ -28,11 +28,6 @@ func Register(app *fiber.App, pool *pgxpool.Pool, userService *service.StudentSe
 	students.Put("/:id", userService.Replace)
 	students.Patch("/:id", userService.Patch)
 	students.Delete("/:id", userService.Delete)
-
-	// Penampung terakhir untuk URL yang tidak dikenal.
-	app.Use(func(c *fiber.Ctx) error {
-		return helper.Fail(c, fiber.StatusNotFound, "endpoint tidak ditemukan")
-	})
 }
 
 // healthCheck melaporkan kondisi layanan beserta databasenya.

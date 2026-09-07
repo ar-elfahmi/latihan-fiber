@@ -1,25 +1,56 @@
 package config
 
 import (
-	"fmt"
+	"log/slog"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"latihan-fiber/app/service"
+	"latihan-fiber/helper"
+	"latihan-fiber/middleware"
 	"latihan-fiber/route"
-	"log/slog"
-	"time"
 )
 
-func NewApp(logger *slog.Logger, s *service.StudentService, pool *pgxpool.Pool) *fiber.App {
-	app := fiber.New(fiber.Config{AppName: "Tugas Mandiri REST API Students"})
-	app.Use(func(c *fiber.Ctx) error {
-		start := time.Now()
-		id := fmt.Sprintf("req-%d", time.Now().UnixNano())
-		c.Set("X-Request-ID", id)
-		e := c.Next()
-		logger.Info("request", slog.String("request_id", id), slog.String("method", c.Method()), slog.String("path", c.Path()), slog.Int("status", c.Response().StatusCode()), slog.Int64("duration_ms", time.Since(start).Milliseconds()))
-		return e
+// NewApp merakit aplikasi: membuat instance Fiber, memasang middleware,
+// lalu mendaftarkan route. File ini adalah tempat seluruh bagian bertemu.
+func NewApp(
+	logger *slog.Logger, pool *pgxpool.Pool, studentService *service.StudentService,
+) *fiber.App {
+	app := fiber.New(fiber.Config{
+		AppName:      GetEnv("APP_NAME", "Tugas Mandiri REST API Students"),
+		ErrorHandler: newErrorHandler(logger),
 	})
-	route.Register(app, pool, s)
+
+	middleware.Register(app, logger)
+	route.Register(app, pool, studentService)
+
+	// Penampung terakhir untuk URL yang tidak dikenal.
+	app.Use(func(c *fiber.Ctx) error {
+		return helper.Fail(c, fiber.StatusNotFound, "endpoint tidak ditemukan")
+	})
+
 	return app
+}
+
+// newErrorHandler adalah jaring pengaman terakhir: error yang tidak
+// tertangani di service berakhir di sini dengan format yang tetap konsisten.
+func newErrorHandler(logger *slog.Logger) fiber.ErrorHandler {
+	return func(c *fiber.Ctx, err error) error {
+		status := fiber.StatusInternalServerError
+		message := "terjadi error pada server"
+
+		if e, ok := err.(*fiber.Error); ok {
+			status = e.Code
+			message = e.Message
+		}
+
+		logger.Error("unhandled_error",
+			slog.String("path", c.Path()),
+			slog.Int("status", status),
+			slog.String("error", err.Error()),
+		)
+
+		return helper.Fail(c, status, message)
+	}
 }
