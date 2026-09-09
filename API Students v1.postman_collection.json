@@ -131,6 +131,17 @@
         },
         {
           "name": "POST — Tambah Mahasiswa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201 dan simpan studentId\", () => {\r\n  pm.response.to.have.status(201);\r\n  const json = pm.response.json();\r\n  pm.expect(json.data).to.exist;\r\n  pm.environment.set(\"studentId\", json.data.id);\r\n});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [],
@@ -238,7 +249,7 @@
       ]
     },
     {
-      "name": "02 Bukti Error (Tugas 3)",
+      "name": "02 Bukti Error",
       "item": [
         {
           "name": "404 — GET id tak ada",
@@ -460,7 +471,12 @@
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "03 Health DB Mati (Manual)",
+      "item": [
         {
           "name": "503 — Health saat DB mati",
           "request": {
