@@ -2,66 +2,54 @@ package main
 
 import (
 	"context"
-	"log/slog"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	"log"
+
+	"github.com/gofiber/fiber/v2"
 
 	"latihan-fiber/app/repository"
 	"latihan-fiber/app/service"
 	"latihan-fiber/config"
 	"latihan-fiber/database"
+	"latihan-fiber/middleware"
+	"latihan-fiber/route"
 )
 
-// main hanya berisi urutan perakitan. Tidak ada logika bisnis,
-// tidak ada query, dan tidak ada satu pun handler di sini.
 func main() {
-	// 1. Konfigurasi dan logger
+	// 0. Baca file .env ke environment variable.
 	config.LoadEnv()
-	logger := config.NewLogger()
 
-	// 2. Database
-	pool, err := database.NewPool(context.Background())
+	ctx := context.Background()
+
+	// 1. Buka koneksi database. Fatal bila gagal.
+	db, err := database.Connect(ctx)
 	if err != nil {
-		logger.Error("gagal terhubung ke database", slog.String("error", err.Error()))
-		os.Exit(1)
+		log.Fatal(err)
 	}
-	defer pool.Close()
+	defer db.Close()
 
-	// 3. Perakitan dari dalam ke luar: repository -> service
-	studentRepository := repository.NewStudentRepository(pool)
-	studentService := service.NewStudentService(studentRepository)
+	studentRepo := repository.StudentRepository{DB: db}
+	prestasiRepo := repository.PrestasiRepository{DB: db}
+	userRepo := repository.UserRepository{DB: db}
 
-	// 4. Aplikasi
-	app := config.NewApp(logger, pool, studentService)
-
-	port := config.GetEnv("APP_PORT", "3000")
-
-	go func() {
-		if err := app.Listen(":" + port); err != nil {
-			logger.Error("server berhenti", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
-	}()
-
-	logger.Info("server berjalan", slog.String("port", port))
-
-	// 5. Graceful shutdown: tunggu Ctrl+C, lalu beri waktu request
-	//    yang sedang berjalan untuk selesai.
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	logger.Info("sinyal berhenti diterima, menutup server")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := app.ShutdownWithContext(ctx); err != nil {
-		logger.Error("gagal menutup server dengan rapi",
-			slog.String("error", err.Error()))
+	// 3. Service: struct konkret yang memegang repository.
+	// JWT_SECRET: kunci tanda tangan token login (ubah di .env milikmu).
+	secret := []byte(config.GetWithDefault("JWT_SECRET", "rahasia-latihan"))
+	svc := service.Services{
+		Student:  service.StudentService{Repo: studentRepo},
+		Prestasi: service.PrestasiService{Repo: prestasiRepo},
+		Auth:     service.AuthService{Repo: userRepo, Secret: secret},
 	}
 
-	logger.Info("server berhenti dengan rapi")
+	// 4. Fiber + middleware + route.
+	app := fiber.New()
+	app.Use(middleware.Logger)
+	route.Setup(app, svc, secret)
+	// 5. Penampung 404 (URL tidak dikenal).
+	app.Use(func(c *fiber.Ctx) error {
+		return c.Status(404).JSON(fiber.Map{"error": "endpoint tidak ditemukan"})
+	})
+
+	port := config.GetWithDefault("APP_PORT", "3000")
+	log.Printf("server berjalan di :%s", port)
+	log.Fatal(app.Listen(":" + port))
 }

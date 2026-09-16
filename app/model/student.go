@@ -2,6 +2,7 @@ package model
 
 import "time"
 
+// Student adalah baris pada tabel students.
 type Student struct {
 	ID        int       `json:"id"`
 	NIM       string    `json:"nim"`
@@ -11,6 +12,7 @@ type Student struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// CreateStudentRequest adalah body POST /students.
 type CreateStudentRequest struct {
 	NIM      string  `json:"nim"`
 	Name     string  `json:"name"`
@@ -18,6 +20,7 @@ type CreateStudentRequest struct {
 	IsActive bool    `json:"is_active"`
 }
 
+// ReplaceStudentRequest adalah body PUT /students/:id (ganti seluruh field).
 type ReplaceStudentRequest struct {
 	NIM      string  `json:"nim"`
 	Name     string  `json:"name"`
@@ -25,6 +28,8 @@ type ReplaceStudentRequest struct {
 	IsActive bool    `json:"is_active"`
 }
 
+// PatchStudentRequest adalah body PATCH /students/:id (ubah sebagian).
+// Field bertipe pointer: nil artinya tidak dikirim / tidak diubah.
 type PatchStudentRequest struct {
 	NIM      *string  `json:"nim,omitempty"`
 	Name     *string  `json:"name,omitempty"`
@@ -32,30 +37,17 @@ type PatchStudentRequest struct {
 	IsActive *bool    `json:"is_active,omitempty"`
 }
 
-type WebResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-	Meta    *Meta  `json:"meta,omitempty"`
-	Errors  any    `json:"errors,omitempty"`
-}
-
-type Meta struct {
-	Page       int `json:"page"`
-	Limit      int `json:"limit"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
-}
-
+// ListQuery membawa parameter query string untuk GET /students.
 type ListQuery struct {
-	Page     int
-	Limit    int
-	Search   string
-	Sort     string
-	Order    string
-	IsActive *bool
+	Page     int    // ?page=
+	Limit    int    // ?limit=
+	Search   string // ?search=
+	Sort     string // ?sort=
+	Order    string // ?order=
+	IsActive *bool  // ?is_active=
 }
 
+// Offset dipakai di query SQL LIMIT/OFFSET.
 func (q ListQuery) Offset() int {
 	return (q.Page - 1) * q.Limit
 }

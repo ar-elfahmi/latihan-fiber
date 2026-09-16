@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -12,195 +11,196 @@ import (
 	"latihan-fiber/helper"
 )
 
-// StudentService memegang dua tanggung jawab sekaligus pada struktur baku
-// mata kuliah ini: menerima *fiber.Ctx (peran controller) dan menjalankan
-// business rules (peran use case). Business rules-nya sendiri berada di
-// student_rules.go, file terpisah yang tidak menyentuh Fiber sama sekali.
+// StudentService adalah struct konkret (tanpa interface) sesuai gaya
+// landing-page. Ia memegang repository langsung lewat field Repo.
 type StudentService struct {
-	repo repository.StudentRepository
+	Repo repository.StudentRepository
 }
 
-// NewStudentService menerima INTERFACE, bukan struct konkret.
-func NewStudentService(repo repository.StudentRepository) *StudentService {
-	return &StudentService{repo: repo}
-}
-
-func (s *StudentService) List(c *fiber.Ctx) error {
-	ctx, cancel := helper.RequestContext(c)
-	defer cancel()
-
-	q := helper.ParseListQuery(c)
-
-	items, total, err := s.repo.FindAll(ctx, q)
-	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError,
-			"gagal mengambil daftar mahasiswa")
+// fromQueryString membaca ListQuery dari query string request.
+// Dipakai oleh GET /students.
+func fromQueryString(c *fiber.Ctx) model.ListQuery {
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 10
 	}
 
-	return helper.SuccessList(c, "daftar mahasiswa berhasil diambil", items, &model.Meta{
-		Page:       q.Page,
-		Limit:      q.Limit,
-		Total:      total,
-		TotalPages: CountTotalPages(total, q.Limit),
+	q := model.ListQuery{
+		Page:   page,
+		Limit:  limit,
+		Search: strings.TrimSpace(c.Query("search")),
+		Sort:   c.Query("sort", "id"),
+		Order:  strings.ToLower(c.Query("order", "asc")),
+	}
+	if !sortColumns[q.Sort] {
+		q.Sort = "id"
+	}
+	if q.Order != "desc" {
+		q.Order = "asc"
+	}
+	if raw := c.Query("is_active"); raw != "" {
+		if v, err := strconv.ParseBool(raw); err == nil {
+			q.IsActive = &v
+		}
+	}
+	return q
+}
+
+// idParam mengambil parameter :id dari URL, mengembalikan -1 bila bukan angka.
+func idParam(c *fiber.Ctx) int {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil || id < 1 {
+		return -1
+	}
+	return id
+}
+
+// List menampilkan daftar mahasiswa dengan paginasi.
+func (s StudentService) List(c *fiber.Ctx) error {
+	q := fromQueryString(c)
+	items, total, err := s.Repo.GetAll(c.Context(), q)
+	if err != nil {
+		return helper.Error(c, 500, "gagal mengambil daftar mahasiswa")
+	}
+	return c.JSON(fiber.Map{
+		"data": items,
+		"meta": fiber.Map{
+			"page":        q.Page,
+			"limit":       q.Limit,
+			"total":       total,
+			"total_pages": CountTotalPages(total, q.Limit),
+		},
 	})
 }
 
-func (s *StudentService) Get(c *fiber.Ctx) error {
-	ctx, cancel := helper.RequestContext(c)
-	defer cancel()
-
-	id, valid := helper.ParamID(c)
-	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+// Get menampilkan satu mahasiswa berdasarkan :id.
+func (s StudentService) Get(c *fiber.Ctx) error {
+	id := idParam(c)
+	if id < 1 {
+		return helper.Error(c, 400, "id harus berupa angka positif")
 	}
-
-	student, err := s.repo.FindByID(ctx, id)
+	student, err := s.Repo.GetByID(c.Context(), id)
 	if err != nil {
-		return translateError(c, err,
-			"mahasiswa tidak ditemukan", "", "gagal mengambil mahasiswa")
+		if err == repository.ErrNotFound {
+			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
+		}
+		return helper.Error(c, 500, "gagal mengambil mahasiswa")
 	}
-
-	return helper.Success(c, fiber.StatusOK, "mahasiswa ditemukan", student)
+	return c.JSON(student)
 }
 
-func (s *StudentService) Create(c *fiber.Ctx) error {
-	ctx, cancel := helper.RequestContext(c)
-	defer cancel()
-
+// Create menambahkan mahasiswa baru. Validasi dipanggil dari rules.
+func (s StudentService) Create(c *fiber.Ctx) error {
 	var req model.CreateStudentRequest
-	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest,
-			"body harus berupa JSON yang valid")
+	if err := helper.ParseBody(c, &req); err != nil {
+		return helper.Error(c, 400, "body harus berupa JSON yang valid")
 	}
-
 	req.NIM = strings.TrimSpace(req.NIM)
 	req.Name = strings.TrimSpace(req.Name)
 
-	// Business rulesnya dipanggil, bukan ditulis ulang di sini.
 	if errs := ValidateCreate(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
 	}
 
-	newStudent, err := s.repo.Create(ctx, model.Student{
-		NIM:      req.NIM,
-		Name:     req.Name,
-		Grade:    req.Grade,
-		IsActive: req.IsActive,
+	student, err := s.Repo.Create(c.Context(), model.Student{
+		NIM: req.NIM, Name: req.Name, Grade: req.Grade, IsActive: req.IsActive,
 	})
 	if err != nil {
-		return translateError(c, err,
-			"mahasiswa tidak ditemukan", "NIM sudah terdaftar",
-			"gagal menambahkan mahasiswa")
+		return mapStudentError(c, err, "mahasiswa tidak ditemukan",
+			"NIM sudah terdaftar", "gagal menambahkan mahasiswa")
 	}
 
-	return helper.Created(c, "mahasiswa berhasil ditambahkan", newStudent,
-		"/api/v1/students/"+strconv.Itoa(newStudent.ID))
+	c.Set("Location", "/api/v1/students/"+strconv.Itoa(student.ID))
+	return c.Status(201).JSON(student)
 }
 
-func (s *StudentService) Replace(c *fiber.Ctx) error {
-	ctx, cancel := helper.RequestContext(c)
-	defer cancel()
-
-	id, valid := helper.ParamID(c)
-	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+// Replace (PUT) mengganti seluruh field mahasiswa.
+func (s StudentService) Replace(c *fiber.Ctx) error {
+	id := idParam(c)
+	if id < 1 {
+		return helper.Error(c, 400, "id harus berupa angka positif")
 	}
 
 	var req model.ReplaceStudentRequest
-	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest,
-			"body harus berupa JSON yang valid")
+	if err := helper.ParseBody(c, &req); err != nil {
+		return helper.Error(c, 400, "body harus berupa JSON yang valid")
 	}
 
-	if errs := ValidateUpdate(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+	if errs := ValidateReplace(req); len(errs) > 0 {
+		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
 	}
 
-	result, err := s.repo.Update(ctx, model.Student{
-		ID:       id,
-		NIM:      strings.TrimSpace(req.NIM),
-		Name:     strings.TrimSpace(req.Name),
-		Grade:    req.Grade,
-		IsActive: req.IsActive,
+	student, err := s.Repo.Replace(c.Context(), model.Student{
+		ID: id, NIM: strings.TrimSpace(req.NIM), Name: strings.TrimSpace(req.Name),
+		Grade: req.Grade, IsActive: req.IsActive,
 	})
 	if err != nil {
-		return translateError(c, err,
-			"mahasiswa tidak ditemukan", "NIM sudah digunakan oleh mahasiswa lain",
-			"gagal memperbarui mahasiswa")
+		return mapStudentError(c, err, "mahasiswa tidak ditemukan",
+			"NIM sudah digunakan oleh mahasiswa lain", "gagal memperbarui mahasiswa")
 	}
-
-	return helper.Success(c, fiber.StatusOK, "data mahasiswa berhasil diganti seluruhnya", result)
+	return c.JSON(student)
 }
 
-func (s *StudentService) Patch(c *fiber.Ctx) error {
-	ctx, cancel := helper.RequestContext(c)
-	defer cancel()
-
-	id, valid := helper.ParamID(c)
-	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+// Patch mengubah sebagian field mahasiswa (hanya field yang dikirim).
+func (s StudentService) Patch(c *fiber.Ctx) error {
+	id := idParam(c)
+	if id < 1 {
+		return helper.Error(c, 400, "id harus berupa angka positif")
 	}
 
 	var req model.PatchStudentRequest
-	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest,
-			"body harus berupa JSON yang valid")
+	if err := helper.ParseBody(c, &req); err != nil {
+		return helper.Error(c, 400, "body harus berupa JSON yang valid")
 	}
-
 	if IsEmptyPatch(req) {
-		return helper.Fail(c, fiber.StatusBadRequest, "tidak ada field yang diubah")
+		return helper.Error(c, 400, "tidak ada field yang diubah")
 	}
 
-	current, err := s.repo.FindByID(ctx, id)
+	current, err := s.Repo.GetByID(c.Context(), id)
 	if err != nil {
-		return translateError(c, err,
-			"mahasiswa tidak ditemukan", "", "gagal mengambil mahasiswa")
+		return mapStudentError(c, err, "mahasiswa tidak ditemukan",
+			"", "gagal mengambil mahasiswa")
 	}
-
 	updated, errs := ApplyPatch(current, req)
 	if len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
 	}
 
-	result, err := s.repo.Update(ctx, updated)
+	student, err := s.Repo.Replace(c.Context(), updated)
 	if err != nil {
-		return translateError(c, err,
-			"mahasiswa tidak ditemukan", "NIM sudah digunakan oleh mahasiswa lain",
-			"gagal memperbarui mahasiswa")
+		return mapStudentError(c, err, "mahasiswa tidak ditemukan",
+			"NIM sudah digunakan oleh mahasiswa lain", "gagal memperbarui mahasiswa")
 	}
-
-	return helper.Success(c, fiber.StatusOK, "data mahasiswa berhasil diperbarui sebagian", result)
+	return c.JSON(student)
 }
 
-func (s *StudentService) Delete(c *fiber.Ctx) error {
-	ctx, cancel := helper.RequestContext(c)
-	defer cancel()
-
-	id, valid := helper.ParamID(c)
-	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+// Delete menghapus mahasiswa. Sukses mengembalikan 204 tanpa body.
+func (s StudentService) Delete(c *fiber.Ctx) error {
+	id := idParam(c)
+	if id < 1 {
+		return helper.Error(c, 400, "id harus berupa angka positif")
 	}
-
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return translateError(c, err,
-			"mahasiswa tidak ditemukan", "", "gagal menghapus mahasiswa")
+	err := s.Repo.Delete(c.Context(), id)
+	if err != nil {
+		return mapStudentError(c, err, "mahasiswa tidak ditemukan",
+			"", "gagal menghapus mahasiswa")
 	}
-
-	return helper.NoContent(c)
+	return c.SendStatus(204)
 }
 
-// translateError memetakan error milik repository menjadi status HTTP.
-// Pesan untuk tidak-ditemukan dan duplikat bisa berbeda per endpoint,
-// karena itu keduanya dikirim sebagai argumen.
-func translateError(
-	c *fiber.Ctx, err error, notFoundMsg, duplicateMsg, generalMsg string,
-) error {
+// mapStudentError menerjemahkan error repository ke status HTTP.
+// Versi inline (tanpa file translateError terpisah) selaras dengan landing-page.
+func mapStudentError(c *fiber.Ctx, err error, notFoundMsg, duplicateMsg, generalMsg string) error {
 	switch {
-	case errors.Is(err, repository.ErrNotFound):
-		return helper.Fail(c, fiber.StatusNotFound, notFoundMsg)
-	case duplicateMsg != "" && errors.Is(err, repository.ErrDuplicate):
-		return helper.Fail(c, fiber.StatusConflict, duplicateMsg)
+	case err == repository.ErrNotFound:
+		return helper.Error(c, 404, notFoundMsg)
+	case duplicateMsg != "" && err == repository.ErrDuplicate:
+		return helper.Error(c, 409, duplicateMsg)
 	default:
-		return helper.Fail(c, fiber.StatusInternalServerError, generalMsg)
+		return helper.Error(c, 500, generalMsg)
 	}
 }

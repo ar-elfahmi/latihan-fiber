@@ -4,259 +4,162 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"latihan-fiber/app/model"
 )
 
-var (
-	ErrNotFound  = errors.New("data tidak ditemukan")
-	ErrDuplicate = errors.New("data sudah ada")
-)
-
-type StudentRepository interface {
-	FindAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error)
-	FindByID(ctx context.Context, id int) (model.Student, error)
-	Create(ctx context.Context, s model.Student) (model.Student, error)
-	Update(ctx context.Context, s model.Student) (model.Student, error)
-	Delete(ctx context.Context, id int) error
+type StudentRepository struct {
+	// DB adalah connection pool; aman untuk request bersamaan.
+	DB *pgxpool.Pool
 }
 
-type studentPostgresRepository struct {
-	pool *pgxpool.Pool
+// sortColumns whitelist kolom ORDER BY supaya input mentah tidak pernah
+// disisipkan ke SQL.
+var sortColumns = map[string]bool{
+	"id":         true,
+	"nim":        true,
+	"name":       true,
+	"grade":      true,
+	"created_at": true,
 }
 
-func NewStudentRepository(pool *pgxpool.Pool) StudentRepository {
-	return &studentPostgresRepository{pool: pool}
-}
-
-var kolomUrut = map[string]string{
-	"id":         "id",
-	"nim":        "nim",
-	"name":       "name",
-	"grade":      "grade",
-	"created_at": "created_at",
-}
-
-func buildFilter(q model.ListQuery) (string, []any) {
-	where := " WHERE 1 = 1"
-	args := []any{}
+// buildWhere menyusun klausa WHERE + daftar argumen dari ListQuery.
+// Mengembalikan " WHERE ..." (termasuk spasi) atau string kosong.
+func buildWhere(q model.ListQuery) (string, []any) {
+	var (
+		clauses []string
+		args    []any
+	)
 
 	if q.Search != "" {
-		where += fmt.Sprintf(" AND name ILIKE $%d", len(args)+1)
 		args = append(args, "%"+q.Search+"%")
+		clauses = append(clauses, fmt.Sprintf("name ILIKE $%d", len(args)))
 	}
-
 	if q.IsActive != nil {
-		where += fmt.Sprintf(" AND is_active = $%d", len(args)+1)
 		args = append(args, *q.IsActive)
+		clauses = append(clauses, fmt.Sprintf("is_active = $%d", len(args)))
 	}
 
-	return where, args
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
-func (r *studentPostgresRepository) FindAll(
-	ctx context.Context,
-	q model.ListQuery,
-) ([]model.Student, int, error) {
-	where, args := buildFilter(q)
+// GetAll mengambil daftar mahasiswa dengan paginasi, pencarian, dan urutan.
+func (r StudentRepository) GetAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error) {
+	where, args := buildWhere(q)
 
+	// Hitung total baris (untuk metadata paginasi).
 	var total int
-
-	err := r.pool.QueryRow(
-		ctx,
-		"SELECT COUNT(*) FROM students"+where,
-		args...,
-	).Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("menghitung student: %w", err)
+	if err := r.DB.QueryRow(ctx, "SELECT COUNT(*) FROM students"+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("hitung student: %w", err)
 	}
 
-	sortColumn, ok := kolomUrut[q.Sort]
-	if !ok {
-		sortColumn = "id"
+	// Pilih kolom ORDER BY hanya dari whitelist.
+	sort := q.Sort
+	if !sortColumns[sort] {
+		sort = "id"
 	}
-
 	order := "ASC"
-	if q.Order == "desc" {
+	if strings.ToLower(q.Order) == "desc" {
 		order = "DESC"
 	}
 
+	// Tambahkan LIMIT/OFFSET di akhir query.
+	args = append(args, q.Limit, q.Offset())
 	sqlText := fmt.Sprintf(
-		`SELECT id, nim, name, grade, is_active, created_at
-		FROM students%s
-		ORDER BY %s %s
-		LIMIT $%d OFFSET $%d`,
-		where,
-		sortColumn,
-		order,
-		len(args)+1,
-		len(args)+2,
+		"SELECT id, nim, name, grade, is_active, created_at FROM students%s ORDER BY %s %s LIMIT $%d OFFSET $%d",
+		where, sort, order, len(args)-1, len(args),
 	)
 
-	args = append(args, q.Limit, q.Offset())
-
-	rows, err := r.pool.Query(ctx, sqlText, args...)
+	rows, err := r.DB.Query(ctx, sqlText, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("mengambil daftar student: %w", err)
+		return nil, 0, fmt.Errorf("ambil daftar student: %w", err)
 	}
 	defer rows.Close()
 
-	hasil := []model.Student{}
-
+	students := []model.Student{}
 	for rows.Next() {
 		var s model.Student
-
-		if err := rows.Scan(
-			&s.ID,
-			&s.NIM,
-			&s.Name,
-			&s.Grade,
-			&s.IsActive,
-			&s.CreatedAt,
-		); err != nil {
-			return nil, 0, fmt.Errorf("membaca baris student: %w", err)
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("baca baris student: %w", err)
 		}
-
-		hasil = append(hasil, s)
+		students = append(students, s)
 	}
-
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("membaca hasil query: %w", err)
-	}
-
-	return hasil, total, nil
+	return students, total, rows.Err()
 }
 
-func (r *studentPostgresRepository) FindByID(
-	ctx context.Context,
-	id int,
-) (model.Student, error) {
+// GetByID mengambil satu mahasiswa berdasarkan id.
+// Mengembalikan ErrNotFound bila tidak ada baris.
+func (r StudentRepository) GetByID(ctx context.Context, id int) (model.Student, error) {
 	var s model.Student
-
-	err := r.pool.QueryRow(
-		ctx,
-		`SELECT id, nim, name, grade, is_active, created_at
-		FROM students
-		WHERE id = $1`,
+	err := r.DB.QueryRow(ctx,
+		`SELECT id, nim, name, grade, is_active, created_at FROM students WHERE id = $1`,
 		id,
-	).Scan(
-		&s.ID,
-		&s.NIM,
-		&s.Name,
-		&s.Grade,
-		&s.IsActive,
-		&s.CreatedAt,
-	)
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
 		}
-
-		return model.Student{}, fmt.Errorf("mengambil student: %w", err)
+		return model.Student{}, fmt.Errorf("ambil student: %w", err)
 	}
-
 	return s, nil
 }
 
-func (r *studentPostgresRepository) Create(
-	ctx context.Context,
-	s model.Student,
-) (model.Student, error) {
-	err := r.pool.QueryRow(
-		ctx,
+// Create menyimpan mahasiswa baru. Mengembalikan ErrDuplicate bila NIM sudah ada.
+func (r StudentRepository) Create(ctx context.Context, s model.Student) (model.Student, error) {
+	err := r.DB.QueryRow(ctx,
 		`INSERT INTO students (nim, name, grade, is_active)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at`,
-		s.NIM,
-		s.Name,
-		s.Grade,
-		s.IsActive,
-	).Scan(
-		&s.ID,
-		&s.CreatedAt,
-	)
+		 VALUES ($1, $2, $3, $4)
+		 RETURNING id, created_at`,
+		s.NIM, s.Name, s.Grade, s.IsActive,
+	).Scan(&s.ID, &s.CreatedAt)
 
 	if err != nil {
-		if isUniqueViolation(err) {
+		if isDuplicate(err) {
 			return model.Student{}, ErrDuplicate
 		}
-
-		return model.Student{}, fmt.Errorf("menyimpan student: %w", err)
+		return model.Student{}, fmt.Errorf("simpan student: %w", err)
 	}
-
 	return s, nil
 }
 
-func (r *studentPostgresRepository) Update(
-	ctx context.Context,
-	s model.Student,
-) (model.Student, error) {
-	err := r.pool.QueryRow(
-		ctx,
+// Replace memperbarui seluruh field mahasiswa. Mengembalikan ErrNotFound / ErrDuplicate.
+func (r StudentRepository) Replace(ctx context.Context, s model.Student) (model.Student, error) {
+	err := r.DB.QueryRow(ctx,
 		`UPDATE students
-		SET nim = $1, name = $2, grade = $3, is_active = $4
-		WHERE id = $5
-		RETURNING id, nim, name, grade, is_active, created_at`,
-		s.NIM,
-		s.Name,
-		s.Grade,
-		s.IsActive,
-		s.ID,
-	).Scan(
-		&s.ID,
-		&s.NIM,
-		&s.Name,
-		&s.Grade,
-		&s.IsActive,
-		&s.CreatedAt,
-	)
+		 SET nim = $1, name = $2, grade = $3, is_active = $4
+		 WHERE id = $5
+		 RETURNING id, nim, name, grade, is_active, created_at`,
+		s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
 		}
-
-		if isUniqueViolation(err) {
+		if isDuplicate(err) {
 			return model.Student{}, ErrDuplicate
 		}
-
-		return model.Student{}, fmt.Errorf("memperbarui student: %w", err)
+		return model.Student{}, fmt.Errorf("update student: %w", err)
 	}
-
 	return s, nil
 }
 
-func (r *studentPostgresRepository) Delete(
-	ctx context.Context,
-	id int,
-) error {
-	tag, err := r.pool.Exec(
-		ctx,
-		`DELETE FROM students WHERE id = $1`,
-		id,
-	)
+// Delete menghapus mahasiswa berdasarkan id.
+func (r StudentRepository) Delete(ctx context.Context, id int) error {
+	tag, err := r.DB.Exec(ctx, `DELETE FROM students WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("menghapus student: %w", err)
+		return fmt.Errorf("hapus student: %w", err)
 	}
-
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-
 	return nil
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-
-	return false
 }

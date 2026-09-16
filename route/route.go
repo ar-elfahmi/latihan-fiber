@@ -1,46 +1,38 @@
 package route
 
 import (
-	"context"
-	"time"
-
 	"github.com/gofiber/fiber/v2"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"latihan-fiber/app/service"
-	"latihan-fiber/helper"
 	"latihan-fiber/middleware"
 )
 
-// Register memetakan URL ke method pada service.
-//
-// Perhatikan isi file ini: tidak ada logika bisnis, tidak ada query,
-// tidak ada validasi. Hanya daftar alamat dan siapa yang melayaninya.
-func Register(app *fiber.App, pool *pgxpool.Pool, userService *service.StudentService) {
+// Setup mendaftarkan seluruh endpoint aplikasi.
+// Tiap endpoint satu baris; aturan/bisnis ada di service.
+func Setup(app *fiber.App, s service.Services, jwtSecret []byte) {
 	api := app.Group("/api/v1")
 
-	api.Get("/health", healthCheck(pool))
+	// Health check
+	api.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
-	students := api.Group("/students", middleware.RequireJSON)
-	students.Get("/", userService.List)
-	students.Get("/:id", userService.Get)
-	students.Post("/", userService.Create)
-	students.Put("/:id", userService.Replace)
-	students.Patch("/:id", userService.Patch)
-	students.Delete("/:id", userService.Delete)
-}
 
-// healthCheck melaporkan kondisi layanan beserta databasenya.
-func healthCheck(pool *pgxpool.Pool) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
-		defer cancel()
+	// Login: terbitkan token JWT (tidak perlu token untuk masuk ke sini).
+	api.Post("/auth/login", s.Auth.Login)
 
-		if err := pool.Ping(ctx); err != nil {
-			return helper.Fail(c, fiber.StatusServiceUnavailable,
-				"database tidak dapat dihubungi")
-		}
+	// Semua route yang didaftarkan SETELAH baris ini wajib bawa token.
+	api.Use(middleware.Protect(jwtSecret))
+	// Mahasiswa
+	st := api.Group("/students")
+	st.Get("/", s.Student.List)
+	st.Get("/:id", s.Student.Get)
+	st.Post("/", s.Student.Create)
+	st.Put("/:id", s.Student.Replace)
+	st.Patch("/:id", s.Student.Patch)
+	st.Delete("/:id", s.Student.Delete)
 
-		return helper.Success(c, fiber.StatusOK, "server dan database berjalan", nil)
-	}
+	// Prestasi (nested di bawah mahasiswa)
+	st.Get("/:id/prestasi", s.Prestasi.GetByStudent)
+	st.Post("/:id/prestasi", s.Prestasi.Create)
 }
