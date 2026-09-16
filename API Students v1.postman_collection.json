@@ -3,10 +3,62 @@
     "_postman_id": "c7fc9e3a-bac7-4147-9b67-df73bf40f1e8",
     "name": "API Students v1",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "54044212",
-    "_collection_link": "https://go.postman.co/collection/54044212-c7fc9e3a-bac7-4147-9b67-df73bf40f1e8?source=collection_link"
+    "_exporter_id": "54044212"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
+    {
+      "name": "00 Auth",
+      "item": [
+        {
+          "name": "POST — Login (simpan token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200 dan dapat token\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.token).to.exist;",
+                  "  pm.collectionVariables.set(\"token\", json.token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
     {
       "name": "00 Health",
       "item": [
@@ -25,22 +77,11 @@
           ],
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "health"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "health"]
             }
           },
           "response": []
@@ -56,43 +97,14 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/students?page=1&limit=10&sort=name&order=asc&is_active=true",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students"
-              ],
+              "raw": "{{baseUrl}}/api/v1/students?page=1&limit=10&sort=name&order=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students"],
               "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "10"
-                },
-                {
-                  "key": "search",
-                  "value": "alfian",
-                  "description": "uji ILIKE",
-                  "disabled": true
-                },
-                {
-                  "key": "sort",
-                  "value": "name",
-                  "description": "whitelist kolom"
-                },
-                {
-                  "key": "order",
-                  "value": "asc"
-                },
-                {
-                  "key": "is_active",
-                  "value": "true"
-                }
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "10"},
+                {"key": "sort", "value": "name"},
+                {"key": "order", "value": "asc"}
               ]
             }
           },
@@ -106,7 +118,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));\r\npm.test(\"id sesuai param\", () => pm.response.json().data.id == pm.environment.get(\"studentId\"));"
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -116,15 +128,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/students/{{studentId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "{{studentId}}"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "{{studentId}}"]
             }
           },
           "response": []
@@ -137,33 +142,24 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status 201 dan simpan studentId\", () => {\r\n  pm.response.to.have.status(201);\r\n  const json = pm.response.json();\r\n  pm.expect(json.data).to.exist;\r\n  pm.environment.set(\"studentId\", json.data.id);\r\n});"
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n\"nim\": \"434241050\",\r\n\"name\": \"Citra Lestari\",\r\n\"grade\": 3.6,\r\n\"is_active\": true\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"nim\": \"99900001\",\n  \"name\": \"Mahasiswa Baru\",\n  \"grade\": 3.5,\n  \"is_active\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/students",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students"]
             }
           },
           "response": []
@@ -172,27 +168,17 @@
           "name": "PUT — Ganti Seluruh Data",
           "request": {
             "method": "PUT",
-            "header": [],
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n\"nim\": \"434241050\",\r\n\"name\": \"Citra Lestari\",\r\n\"grade\": 3.6,\r\n\"is_active\": true\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"nim\": \"99900001\",\n  \"name\": \"Mahasiswa Update\",\n  \"grade\": 3.8,\n  \"is_active\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/students/{{studentId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "{{studentId}}"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "{{studentId}}"]
             }
           },
           "response": []
@@ -201,27 +187,17 @@
           "name": "PATCH — Ubah Sebagian",
           "request": {
             "method": "PATCH",
-            "header": [],
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"grade\": 3.9\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"grade\": 3.9\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/students/{{studentId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "{{studentId}}"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "{{studentId}}"]
             }
           },
           "response": []
@@ -233,15 +209,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/students/{{studentId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "{{studentId}}"
-              ]
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "{{studentId}}"]
             }
           },
           "response": []
@@ -249,265 +218,194 @@
       ]
     },
     {
-      "name": "02 Bukti Error",
+      "name": "02 Prestasi per Mahasiswa",
       "item": [
         {
-          "name": "404 — GET id tak ada",
+          "name": "GET — Prestasi Mahasiswa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"body adalah array\", () => Array.isArray(pm.response.json()));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/students/999",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "999"
-              ]
+              "raw": "{{baseUrl}}/api/v1/students/{{studentId}}/prestasi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "{{studentId}}", "prestasi"]
             }
           },
-          "response": [],
+          "response": []
+        },
+        {
+          "name": "POST — Tambah Prestasi",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"respons harus 404\", () => pm.response.to.have.status(404));"
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));"
                 ]
               }
             }
-          ]
-        },
-        {
-          "name": "404 — PUT id tak ada",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n\"nim\": \"434241050\",\r\n\"name\": \"Citra Lestari\",\r\n\"grade\": 3.6,\r\n\"is_active\": true\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/students/999",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "999"
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"respons harus 404\", () => pm.response.to.have.status(404));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "404 — PATCH id tak ada",
-          "request": {
-            "method": "PATCH",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\"name\":\"X\"}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/students/999",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "999"
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"respons harus 404\", () => pm.response.to.have.status(404));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "404 — DELETE id tak ad",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/students/999",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "999"
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"respons harus 404\", () => pm.response.to.have.status(404));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "409 — POST NIM ganda",
+          ],
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nim\": \"434241047\",\n  \"name\": \"Mahasiswa Ketiga\",\n  \"grade\": 3.5,\n  \"is_active\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"keterangan\": \"Juara 1 Lomba\",\n  \"juara\": 1\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/v1/students",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students"
-              ]
+              "raw": "{{baseUrl}}/api/v1/students/{{studentId}}/prestasi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "{{studentId}}", "prestasi"]
             }
           },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"respons harus 409\", () => pm.response.to.have.status(409));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "409 — PUT NIM jadi milik lain",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nim\": \"434241047\",\n  \"name\": \"Mahasiswa Kedua\",\n  \"grade\": 3.5,\n  \"is_active\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/students/3",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "students",
-                "3"
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"respons harus 409\", () => pm.response.to.have.status(409));"
-                ]
-              }
-            }
-          ]
+          "response": []
         }
       ]
     },
     {
-      "name": "03 Health DB Mati (Manual)",
+      "name": "03 Bukti Error",
       "item": [
         {
-          "name": "503 — Health saat DB mati",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "health"
-              ]
-            }
-          },
-          "response": [],
+          "name": "401 — Tanpa Token",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"respons harus 503\", () => pm.response.to.have.status(503));"
+                  "pm.test(\"respons harus 401\", () => pm.response.to.have.status(401));"
                 ]
               }
             }
-          ]
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/students",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "404 — GET id tak ada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"respons harus 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/students/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students", "999"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "409 — POST NIM ganda",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"respons harus 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nim\": \"434241047\",\n  \"name\": \"Duplikat\",\n  \"grade\": 3.5,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/students",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "422 — Validasi Gagal (grade > 4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"respons harus 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nim\": \"12345\",\n  \"name\": \"Test\",\n  \"grade\": 5.0,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/students",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "students"]
+            }
+          },
+          "response": []
         }
       ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "studentId",
+      "value": "1"
     }
   ]
 }
