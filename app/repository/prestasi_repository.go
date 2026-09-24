@@ -2,11 +2,9 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"latihan-fiber/app/model"
@@ -81,22 +79,6 @@ func (r PrestasiRepository) GetAll(ctx context.Context, q model.ListQuery) ([]mo
 	return out, total, rows.Err()
 }
 
-// GetByID mengambil satu prestasi.
-func (r PrestasiRepository) GetByID(ctx context.Context, id int) (model.Prestasi, error) {
-	var p model.Prestasi
-	err := r.DB.QueryRow(ctx,
-		`SELECT id, student_id, keterangan, juara FROM prestasi WHERE id = $1`,
-		id,
-	).Scan(&p.ID, &p.StudentID, &p.Keterangan, &p.Juara)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return model.Prestasi{}, ErrNotFound
-		}
-		return model.Prestasi{}, fmt.Errorf("ambil prestasi: %w", err)
-	}
-	return p, nil
-}
 
 // GetByStudentID mengambil semua prestasi milik seorang mahasiswa.
 func (r PrestasiRepository) GetByStudentID(ctx context.Context, studentID int) ([]model.Prestasi, error) {
@@ -139,13 +121,3 @@ func (r PrestasiRepository) Create(ctx context.Context, p model.Prestasi) (model
 	return p, nil
 }
 
-// StudentExists mengecek apakah mahasiswa dengan id tertentu ada.
-// Dipakai service bila perlu validasi eksplisit sebelum menyimpan prestasi.
-func (r PrestasiRepository) StudentExists(ctx context.Context, studentID int) (bool, error) {
-	var exists bool
-	err := r.DB.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM students WHERE id = $1)`,
-		studentID,
-	).Scan(&exists)
-	return exists, err
-}

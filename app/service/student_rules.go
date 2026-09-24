@@ -11,7 +11,7 @@ import (
 )
 
 // sortColumns whitelist untuk ORDER BY tabel students.
-// Dipakai oleh student_service.go dan repository.
+// Dipakai oleh student_service.go untuk validasi awal sort.
 var sortColumns = map[string]bool{
 	"id": true, "nim": true, "name": true, "grade": true, "created_at": true,
 }
