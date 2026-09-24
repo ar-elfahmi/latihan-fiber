@@ -30,21 +30,22 @@ func main() {
 	studentRepo := repository.StudentRepository{DB: db}
 	prestasiRepo := repository.PrestasiRepository{DB: db}
 	userRepo := repository.UserRepository{DB: db}
+	rbacRepo := repository.RBACRepository{DB: db}
 
-	// 3. Service: struct konkret yang memegang repository.
-	// JWT_SECRET: kunci tanda tangan token login (ubah di .env milikmu).
 	secret := []byte(config.GetWithDefault("JWT_SECRET", "rahasia-latihan"))
+
 	svc := service.Services{
 		Student:  service.StudentService{Repo: studentRepo},
-		Prestasi: service.PrestasiService{Repo: prestasiRepo},
-		Auth:     service.AuthService{Repo: userRepo, Secret: secret},
+		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
+		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Secret: secret},
 	}
 
-	// 4. Fiber + middleware + route.
+	// 3. Fiber + middleware + route.
 	app := fiber.New()
 	app.Use(middleware.Logger)
-	route.Setup(app, svc, secret)
-	// 5. Penampung 404 (URL tidak dikenal).
+	// Protect butuh rbacRepo untuk fetch permission live (Modul 6).
+	route.Setup(app, svc, rbacRepo, secret)
+	// 4. Penampung 404 (URL tidak dikenal).
 	app.Use(func(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "endpoint tidak ditemukan"})
 	})
