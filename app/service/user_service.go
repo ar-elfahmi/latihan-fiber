@@ -1,6 +1,9 @@
 package service
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 
 	"latihan-fiber/app/model"
@@ -15,16 +18,24 @@ type UserService struct {
 	Repo repository.UserRepository
 }
 
-// List menampilkan daftar user dengan cursor pagination.
+// userCSVHeaders adalah urutan kolom pada response CSV.
+var userCSVHeaders = []string{"id", "username", "email", "is_active", "created_at"}
+
+// List menampilkan daftar user dengan cursor pagination dan
+// content negotiation (JSON default atau CSV bila Accept meminta).
 //
 // Alur:
-//  1. Parse limit dari query (default 10, max 50).
-//  2. Bila tidak ada cursor, ambil halaman pertama dari Repo.List.
-//  3. Bila ada cursor, decode via helper.DecodeCursor; gagal
-//     decode -> helper.InvalidCursor (400).
-//  4. Potong limit+1: bila kelebihan 1 baris, has_more = true dan
-//     next_cursor diisi dari baris terakhir.
+//  1. Negotiate format SEBELUM query DB; gagal -> 406.
+//  2. Decode cursor; gagal -> 400 INVALID_CURSOR.
+//  3. Query repo (List atau FindAfterCursor).
+//  4. Potong limit+1, isi meta.
+//  5. Render sesuai format yang diminta.
 func (s UserService) List(c *fiber.Ctx) error {
+	if err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV); err != nil {
+		return err
+	}
+	format := helper.ChosenFormat(c)
+
 	limit := c.QueryInt("limit", 10)
 	if limit <= 0 || limit > 50 {
 		limit = 10
@@ -62,6 +73,19 @@ func (s UserService) List(c *fiber.Ctx) error {
 		meta.NextCursor = helper.EncodeCursor(last.CreatedAt, last.ID)
 	}
 
+	if format == helper.FormatCSV {
+		rows := make([][]string, len(users))
+		for i, u := range users {
+			rows[i] = []string{
+				strconv.Itoa(u.ID),
+				u.Username,
+				u.Email,
+				strconv.FormatBool(u.IsActive),
+				u.CreatedAt.Format(time.RFC3339),
+			}
+		}
+		return helper.WriteCSV(c, userCSVHeaders, rows)
+	}
 	return c.JSON(fiber.Map{
 		"data": users,
 		"meta": meta,
