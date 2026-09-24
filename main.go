@@ -10,6 +10,7 @@ import (
 	"latihan-fiber/app/service"
 	"latihan-fiber/config"
 	"latihan-fiber/database"
+	"latihan-fiber/helper"
 	"latihan-fiber/middleware"
 	"latihan-fiber/route"
 )
@@ -41,13 +42,14 @@ func main() {
 	}
 
 	// 3. Fiber + middleware + route.
-	app := fiber.New()
+	app := fiber.New(fiber.Config{ErrorHandler: config.ErrorHandler})
 	app.Use(middleware.Logger)
 	// Protect butuh rbacRepo untuk fetch permission live (Modul 6).
 	route.Setup(app, svc, rbacRepo, secret)
-	// 4. Penampung 404 (URL tidak dikenal).
+	// 4. Penampung 404 (URL tidak dikenal). Dikembalikan sebagai
+	// *AppError agar ErrorHandler membentuk JSON seragam.
 	app.Use(func(c *fiber.Ctx) error {
-		return c.Status(404).JSON(fiber.Map{"error": "endpoint tidak ditemukan"})
+		return helper.NotFound("endpoint")
 	})
 
 	port := config.GetWithDefault("APP_PORT", "3000")
