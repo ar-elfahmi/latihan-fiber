@@ -60,4 +60,10 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 		middleware.RequirePermission("prestasi:create"),
 		s.Prestasi.Create,
 	)
+
+	// --- User management (Modul 7) ---
+	api.Get("/users",
+		middleware.RequirePermission("user:list"),
+		s.User.List,
+	)
 }

@@ -39,6 +39,7 @@ func main() {
 		Student:  service.StudentService{Repo: studentRepo},
 		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
 		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Secret: secret},
+		User:     service.UserService{Repo: userRepo},
 	}
 
 	// 3. Fiber + middleware + route.
