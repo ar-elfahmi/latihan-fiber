@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -12,10 +13,11 @@ import (
 
 // PrestasiService adalah struct konkret untuk tabel prestasi.
 type PrestasiService struct {
-	Repo repository.PrestasiRepository
+	Repo    repository.PrestasiRepository
+	Student repository.StudentRepository
 }
 
-// sortColumns whitelist untuk ORDER BY tabel prestasi.
+// prestasiSortColumns whitelist untuk ORDER BY tabel prestasi.
 var prestasiSortColumns = map[string]bool{
 	"id": true, "student_id": true, "keterangan": true, "juara": true, "created_at": true,
 }
@@ -31,10 +33,8 @@ func (s PrestasiService) List(c *fiber.Ctx) error {
 		limit = 10
 	}
 	q := model.ListQuery{
-		Page: page, Limit: limit,
-		Search: c.Query("search"),
-		Sort:   c.Query("sort", "id"),
-		Order:  c.Query("order", "asc"),
+		Page:  page,
+		Limit: limit,
 	}
 	if !prestasiSortColumns[q.Sort] {
 		q.Sort = "id"
@@ -48,33 +48,56 @@ func (s PrestasiService) List(c *fiber.Ctx) error {
 		return helper.Error(c, 500, "gagal mengambil daftar prestasi")
 	}
 	return c.JSON(fiber.Map{
-		"data": items,
-		"meta": fiber.Map{
-			"page": q.Page, "limit": q.Limit, "total": total,
-			"total_pages": CountTotalPages(total, q.Limit),
-		},
+		"data":        items,
+		"page":        q.Page,
+		"limit":       q.Limit,
+		"total":       total,
+		"total_pages": CountTotalPages(total, q.Limit),
+		"sort":        q.Sort,
+		"order":       q.Order,
 	})
 }
 
 // GetByStudent menampilkan seluruh prestasi milik seorang mahasiswa.
+// Modul 6: kalau user hanya punya prestasi:read:self -> cek student adalah miliknya.
 func (s PrestasiService) GetByStudent(c *fiber.Ctx) error {
 	id, err := strconv.Atoi(c.Params("id"))
-	if err != nil || id < 1 {
-		return helper.Error(c, 400, "id mahasiswa harus berupa angka positif")
+	if err != nil || id <= 0 {
+		return helper.Error(c, 400, "id tidak valid")
+	}
+	perms := CurrentPerms(c)
+	if !perms["prestasi:read:any"] {
+		// Hanya :self (atau tak punya). Wajib cek pemilikan student-nya.
+		st, err := s.Student.GetByID(c.Context(), id)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return helper.Error(c, 404, "mahasiswa tidak ditemukan")
+			}
+			return helper.Error(c, 500, "gagal mengambil mahasiswa")
+		}
+		owner := 0
+		if st.OwnerID != nil {
+			owner = *st.OwnerID
+		}
+		if !RequireOwnerOrAdmin(CurrentUserID(c), owner) {
+			return helper.Error(c, 403, "anda hanya boleh melihat prestasi milik sendiri")
+		}
 	}
 	items, err := s.Repo.GetByStudentID(c.Context(), id)
 	if err != nil {
-		return helper.Error(c, 500, "gagal mengambil prestasi mahasiswa")
+		return helper.Error(c, 500, "gagal mengambil prestasi")
 	}
-	return c.JSON(items)
+	return c.JSON(fiber.Map{"data": items})
 }
 
 // Create menambahkan prestasi baru untuk seorang mahasiswa.
 // student_id selalu diambil dari :id, bukan dari body.
+// Modul 6: kalau user hanya punya student:create tanpa akses admin/staff,
+// wajib cek student adalah miliknya.
 func (s PrestasiService) Create(c *fiber.Ctx) error {
-	studentID, err := strconv.Atoi(c.Params("id"))
-	if err != nil || studentID < 1 {
-		return helper.Error(c, 400, "id mahasiswa harus berupa angka positif")
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil || id <= 0 {
+		return helper.Error(c, 400, "id tidak valid")
 	}
 
 	var req model.CreatePrestasiRequest
@@ -85,16 +108,36 @@ func (s PrestasiService) Create(c *fiber.Ctx) error {
 		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
 	}
 
-	created, err := s.Repo.Create(c.Context(), model.Prestasi{
-		StudentID: studentID, Keterangan: req.Keterangan, Juara: req.Juara,
-	})
-	if err != nil {
-		if err == repository.ErrStudentNotFound {
-			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
+	// Modul 6: hanya admin/staff yang boleh menambah prestasi untuk student
+	// lain. User biasa yang 'menciptakan diri sendiri' ditolak di sini.
+	perms := CurrentPerms(c)
+	if !perms["student:read:any"] {
+		st, err := s.Student.GetByID(c.Context(), id)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return helper.Error(c, 404, "mahasiswa tidak ditemukan")
+			}
+			return helper.Error(c, 500, "gagal mengambil mahasiswa")
 		}
-		return helper.Error(c, 500, "gagal menambahkan prestasi")
+		owner := 0
+		if st.OwnerID != nil {
+			owner = *st.OwnerID
+		}
+		if !RequireOwnerOrAdmin(CurrentUserID(c), owner) {
+			return helper.Error(c, 403, "hanya admin/staff yang boleh menambah prestasi untuk mahasiswa lain")
+		}
 	}
 
-	c.Set("Location", "/api/v1/students/"+strconv.Itoa(studentID)+"/prestasi")
+	created, err := s.Repo.Create(c.Context(), model.Prestasi{
+		StudentID:  id,
+		Juara:      req.Juara,
+		Keterangan: req.Keterangan,
+	})
+	if err != nil {
+		if errors.Is(err, repository.ErrStudentNotFound) || errors.Is(err, repository.ErrNotFound) {
+			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
+		}
+		return helper.Error(c, 500, "gagal menambah prestasi")
+	}
 	return c.Status(201).JSON(created)
 }
