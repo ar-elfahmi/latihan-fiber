@@ -6,9 +6,9 @@ API REST data mahasiswa + prestasi, dibangun dengan **Go + Fiber v2 + PostgreSQL
 
 > **Kesederhanaan adalah kunci.** Semua kode ditulis seramah mungkin supaya bisa dikembangkan sendiri tanpa AI.
 
-- Tidak pakai dependency luar yang tidak perlu (tidak ada godotenv, lumberjack, slog)
+- Tidak pakai dependency luar yang tidak perlu (`go.mod` hanya: fiber, pgx, jwt, crypto)
 - Pakai library standar Go (`log`, `os`, `context`)
-- Database: `pgx.Connect` (koneksi tunggal, cocok belajar; production pakai pgxpool)
+- Database: `pgxpool` (connection pool, aman untuk request bersamaan)
 - Struct konkret saja, **tidak ada interface** repository
 - Handler, validasi, dan SQL diletakkan di tempat yang paling logis
 
@@ -23,10 +23,9 @@ API REST data mahasiswa + prestasi, dibangun dengan **Go + Fiber v2 + PostgreSQL
 
 ```
 main.go              entry point: koneksi DB → repo → service → Fiber
-config/logger.go     var Logger = log.Default()
-config/env.go        os.Getenv + GetWithDefault
-database/postgres.go pgx.Connect
-middleware/middleware.go  fungsi Logger() saja
+config/env.go        LoadEnv / Get / GetWithDefault
+database/postgres.go pgxpool
+middleware/middleware.go  fungsi Logger(); middleware/auth.go  fungsi Protect()
 helper/request.go    ParseBody(c, target)
 helper/response.go   Error(c, status, msg)
 route/route.go       Setup(app, Services{Student, Prestasi})
@@ -143,6 +142,6 @@ go test ./...     # jalankan unit test (business rules saja)
 
 ## Catatan Penting
 
-- **Single connection (`pgx.Conn`)** — tidak thread-safe. Jika beban request tinggi, ganti `database.Connect` pakai `pgxpool.New` (sedikit perubahan saja).
+- **Connection pool (`pgxpool`)** — `database.Connect` mengembalikan pool yang aman dipakai bersamaan oleh banyak request Fiber. Jangan diganti ke `pgx.Conn` tunggal: request yang bertabrakan akan error 500.
 - **Graceful shutdown** — tidak dipakai (Fiber `Listen` blocking sudah cukup untuk belajar).
 - **Test** — `app/service/*_test.go` menguji business rules tanpa database/server.
