@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -64,7 +63,7 @@ func (s StudentService) List(c *fiber.Ctx) error {
 
 	items, total, err := s.Repo.GetAll(c.Context(), q)
 	if err != nil {
-		return helper.Error(c, 500, "gagal mengambil daftar mahasiswa")
+		return helper.Internal(err)
 	}
 	return c.JSON(fiber.Map{
 		"data":        items,
@@ -82,15 +81,12 @@ func (s StudentService) List(c *fiber.Ctx) error {
 func (s StudentService) Get(c *fiber.Ctx) error {
 	id := idParam(c)
 	if id <= 0 {
-		return helper.Error(c, 400, "id tidak valid")
+		return helper.BadRequest("id tidak valid")
 	}
 	perms := helper.PermissionSet(CurrentPerms(c))
 	st, err := s.Repo.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
-		}
-		return helper.Error(c, 500, "gagal mengambil mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	me := model.AuthUser{ID: CurrentUserID(c)}
 	owner := 0
@@ -98,7 +94,7 @@ func (s StudentService) Get(c *fiber.Ctx) error {
 		owner = *st.OwnerID
 	}
 	if !CanAccessStudent(me, owner, &perms, "student:read:any") {
-		return helper.Error(c, 403, "anda hanya boleh melihat data milik sendiri")
+		return helper.Forbidden("anda hanya boleh melihat data milik sendiri")
 	}
 	return c.JSON(st)
 }
@@ -113,10 +109,10 @@ func (s StudentService) Get(c *fiber.Ctx) error {
 func (s StudentService) Create(c *fiber.Ctx) error {
 	var req model.CreateStudentRequest
 	if err := helper.ParseBody(c, &req); err != nil {
-		return helper.Error(c, 400, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 	if errs := ValidateCreate(req); len(errs) > 0 {
-		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
+		return helper.Validation(errs)
 	}
 	actor := CurrentUserID(c)
 	var owner *int
@@ -132,7 +128,7 @@ func (s StudentService) Create(c *fiber.Ctx) error {
 	}
 	created, err := s.Repo.Create(c.Context(), st)
 	if err != nil {
-		return mapStudentError(c, err, "gagal menambah mahasiswa", "nim sudah dipakai", "gagal menambah mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	return c.Status(201).JSON(created)
 }
@@ -142,17 +138,17 @@ func (s StudentService) Create(c *fiber.Ctx) error {
 func (s StudentService) Replace(c *fiber.Ctx) error {
 	id := idParam(c)
 	if id <= 0 {
-		return helper.Error(c, 400, "id tidak valid")
+		return helper.BadRequest("id tidak valid")
 	}
 	if err := enforceStudentWrite(c, s, id, "student:update:any", "student:update:self"); err != nil {
 		return err
 	}
 	var req model.ReplaceStudentRequest
 	if err := helper.ParseBody(c, &req); err != nil {
-		return helper.Error(c, 400, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 	if errs := ValidateReplace(req); len(errs) > 0 {
-		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
+		return helper.Validation(errs)
 	}
 	st := model.Student{
 		ID:       id,
@@ -163,7 +159,7 @@ func (s StudentService) Replace(c *fiber.Ctx) error {
 	}
 	updated, err := s.Repo.Replace(c.Context(), st)
 	if err != nil {
-		return mapStudentError(c, err, "mahasiswa tidak ditemukan", "nim sudah dipakai", "gagal memperbarui mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	return c.JSON(updated)
 }
@@ -172,32 +168,29 @@ func (s StudentService) Replace(c *fiber.Ctx) error {
 func (s StudentService) Patch(c *fiber.Ctx) error {
 	id := idParam(c)
 	if id <= 0 {
-		return helper.Error(c, 400, "id tidak valid")
+		return helper.BadRequest("id tidak valid")
 	}
 	if err := enforceStudentWrite(c, s, id, "student:update:any", "student:update:self"); err != nil {
 		return err
 	}
 	var req model.PatchStudentRequest
 	if err := helper.ParseBody(c, &req); err != nil {
-		return helper.Error(c, 400, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 	if IsEmptyPatch(req) {
-		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": map[string]string{"body": "tidak ada field yang dikirim"}})
+		return helper.Validation(map[string]string{"body": "tidak ada field yang dikirim"})
 	}
 	st, err := s.Repo.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
-		}
-		return helper.Error(c, 500, "gagal mengambil mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	updated, errs := ApplyPatch(st, req)
 	if len(errs) > 0 {
-		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
+		return helper.Validation(errs)
 	}
 	saved, err := s.Repo.Replace(c.Context(), updated)
 	if err != nil {
-		return mapStudentError(c, err, "mahasiswa tidak ditemukan", "nim sudah dipakai", "gagal memperbarui mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	return c.JSON(saved)
 }
@@ -206,26 +199,12 @@ func (s StudentService) Patch(c *fiber.Ctx) error {
 func (s StudentService) Delete(c *fiber.Ctx) error {
 	id := idParam(c)
 	if id <= 0 {
-		return helper.Error(c, 400, "id tidak valid")
+		return helper.BadRequest("id tidak valid")
 	}
 	if err := s.Repo.Delete(c.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
-		}
-		return helper.Error(c, 500, "gagal menghapus mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	return c.SendStatus(204)
-}
-
-// mapStudentError menerjemahkan error repository ke status HTTP.
-func mapStudentError(c *fiber.Ctx, err error, notFoundMsg, duplicateMsg, generalMsg string) error {
-	if errors.Is(err, repository.ErrNotFound) || errors.Is(err, repository.ErrStudentNotFound) {
-		return helper.Error(c, 404, notFoundMsg)
-	}
-	if errors.Is(err, repository.ErrDuplicate) {
-		return helper.Error(c, 409, duplicateMsg)
-	}
-	return helper.Error(c, 500, generalMsg)
 }
 
 // enforceStudentWrite memutuskan apakah user boleh menulis ke record
@@ -237,14 +216,11 @@ func mapStudentError(c *fiber.Ctx, err error, notFoundMsg, duplicateMsg, general
 func enforceStudentWrite(c *fiber.Ctx, s StudentService, id int, anyPerm, selfPerm string) error {
 	perms := CurrentPerms(c)
 	if !HasAnyPermissionFromGroups(perms, []string{anyPerm, selfPerm}) {
-		return helper.Error(c, 403, "tidak punya hak untuk aksi ini")
+		return helper.Forbidden("tidak punya hak untuk aksi ini")
 	}
 	st, err := s.Repo.GetByID(c.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return helper.Error(c, 404, "mahasiswa tidak ditemukan")
-		}
-		return helper.Error(c, 500, "gagal mengambil mahasiswa")
+		return translateError(err, "mahasiswa")
 	}
 	owner := 0
 	if st.OwnerID != nil {
@@ -253,7 +229,7 @@ func enforceStudentWrite(c *fiber.Ctx, s StudentService, id int, anyPerm, selfPe
 	me := model.AuthUser{ID: CurrentUserID(c)}
 	ps := helper.PermissionSet(perms)
 	if !CanAccessStudent(me, owner, &ps, anyPerm) {
-		return helper.Error(c, 403, "anda hanya boleh mengubah data milik sendiri")
+		return helper.Forbidden("anda hanya boleh mengubah data milik sendiri")
 	}
 	return nil
 }

@@ -25,27 +25,27 @@ func Protect(rbac repository.RBACRepository, secret []byte) fiber.Handler {
 		// 1. Ambil header. Harus diawali kata "Bearer ".
 		header := c.Get("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
-			return helper.Error(c, 401, "token belum dikirim. Login dulu, lalu kirim header Authorization: Bearer <token>")
+			return helper.Unauthorized("token belum dikirim. Login dulu, lalu kirim header Authorization: Bearer <token>")
 		}
 		tokenString := strings.TrimPrefix(header, "Bearer ")
 
 		// 2. Periksa tanda tangan + kedaluwarsa.
 		claims, err := service.ParseToken(tokenString, secret)
 		if err != nil {
-			return helper.Error(c, 401, "token tidak valid atau sudah kedaluwarsa")
+			return helper.Unauthorized("token tidak valid atau sudah kedaluwarsa")
 		}
 
 		// 3. Ambil user_id dari klaim.
 		userID, err := claimInt(claims, "sub")
 		if err != nil {
-			return helper.Error(c, 401, "token tidak berisi identitas yang sah")
+			return helper.Unauthorized("token tidak berisi identitas yang sah")
 		}
 
 		// 4. Muat permission live dari DB. Token valid -> identitas ada;
 		//    gagal query -> 403 (hak tak dapat ditentukan). Fail closed.
 		perms, err := rbac.GetPermissionsByUserID(c.Context(), userID)
 		if err != nil {
-			return helper.Error(c, 403, "gagal memuat hak akses user")
+			return helper.Forbidden("gagal memuat hak akses user")
 		}
 
 		// 4b. Ambil daftar role user. Hanya untuk pencatatan log (Langkah 8),

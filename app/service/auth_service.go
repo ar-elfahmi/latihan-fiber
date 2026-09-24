@@ -24,25 +24,25 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	// 1. Baca body JSON.
 	var req model.LoginRequest
 	if err := helper.ParseBody(c, &req); err != nil {
-		return helper.Error(c, 400, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	// 2. Validasi bentuk input (kosong/tidak).
 	if errs := ValidateLogin(req); len(errs) > 0 {
-		return c.Status(422).JSON(fiber.Map{"error": "validasi gagal", "fields": errs})
+		return helper.Validation(errs)
 	}
 
 	// 3. Cari akun. Salah username ATAU salah password: pesannya sama,
 	//    supaya orang lain tidak tahu field mana yang keliru.
 	u, err := s.Repo.GetByUsername(c.Context(), req.Username)
 	if err != nil || !CheckPassword(req.Password, u.PasswordHash) {
-		return helper.Error(c, 401, "username atau password salah")
+		return helper.Unauthorized("username atau password salah")
 	}
 
 	// 4. Buat token dan kirimkan ke client.
 	token, err := MakeToken(u.ID, u.Username, s.Secret)
 	if err != nil {
-		return helper.Error(c, 500, "gagal membuat token")
+		return helper.Internal(err)
 	}
 	return c.JSON(fiber.Map{
 		"token": token,

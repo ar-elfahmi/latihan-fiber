@@ -30,7 +30,7 @@ func RequirePermission(candidates ...string) fiber.Handler {
 		// 401 hanya kalau TIDAK ada identitas (Protect sudah gagal duluan).
 		// Kasus umum: token valid -> Protect men-set user_id & perms.
 		if !service.HasAnyPermissionFromGroups(perms, candidates) {
-			return helper.Error(c, 403, "tidak punya hak untuk aksi ini")
+			return helper.Forbidden("tidak punya hak untuk aksi ini")
 		}
 		return c.Next()
 	}
