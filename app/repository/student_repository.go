@@ -23,6 +23,60 @@ var sortColumns = map[string]bool{
 	"id": true, "nim": true, "name": true, "grade": true, "created_at": true,
 }
 
+// List mengambil halaman pertama student dengan urutan id DESC.
+// Limit + 1 dipakai untuk deteksi has_more di service.
+func (r StudentRepository) List(ctx context.Context, limit int) ([]model.Student, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	rows, err := r.DB.Query(ctx, `
+		SELECT id, nim, name, grade, is_active, owner_id, created_at
+		FROM students
+		ORDER BY id DESC
+		LIMIT $1
+	`, limit+1)
+	if err != nil {
+		return nil, fmt.Errorf("list students: %w", err)
+	}
+	defer rows.Close()
+	return scanStudents(rows)
+}
+
+// FindAfterCursor mengambil daftar student dengan id < cursorID,
+// urutan id DESC. Field cursorTime diabaikan (student pakai id saja).
+func (r StudentRepository) FindAfterCursor(ctx context.Context, cursorID, limit int) ([]model.Student, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	rows, err := r.DB.Query(ctx, `
+		SELECT id, nim, name, grade, is_active, owner_id, created_at
+		FROM students
+		WHERE id < $1
+		ORDER BY id DESC
+		LIMIT $2
+	`, cursorID, limit+1)
+	if err != nil {
+		return nil, fmt.Errorf("cursor students: %w", err)
+	}
+	defer rows.Close()
+	return scanStudents(rows)
+}
+
+func scanStudents(rows pgx.Rows) ([]model.Student, error) {
+	var students []model.Student
+	for rows.Next() {
+		var s model.Student
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.OwnerID, &s.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan student: %w", err)
+		}
+		students = append(students, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterasi student: %w", err)
+	}
+	return students, nil
+}
+
 // buildWhere menyusun klausa WHERE + daftar argumen dari ListQuery.
 // Mengembalikan " WHERE ..." (termasuk spasi) atau string kosong.
 func buildWhere(q model.ListQuery) (string, []any) {
@@ -46,48 +100,21 @@ func buildWhere(q model.ListQuery) (string, []any) {
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
-// GetAll mengambil daftar mahasiswa dengan paginasi, pencarian, dan urutan.
-func (r StudentRepository) GetAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error) {
+// GetAllWithFilter tetap dipakai path lain yang butuh search/is_active.
+// Cursor path pakai List + FindAfterCursor.
+func (r StudentRepository) GetAllWithFilter(ctx context.Context, q model.ListQuery, limit int) ([]model.Student, error) {
 	where, args := buildWhere(q)
-
-	// Hitung total baris (untuk metadata paginasi).
-	var total int
-	if err := r.DB.QueryRow(ctx, "SELECT COUNT(*) FROM students"+where, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("hitung student: %w", err)
-	}
-
-	// Pilih kolom ORDER BY hanya dari whitelist.
-	sort := q.Sort
-	if !sortColumns[sort] {
-		sort = "id"
-	}
-	order := "ASC"
-	if strings.ToLower(q.Order) == "desc" {
-		order = "DESC"
-	}
-
-	// Tambahkan LIMIT/OFFSET di akhir query.
-	args = append(args, q.Limit, q.Offset())
-	sqlText := fmt.Sprintf(
-		"SELECT id, nim, name, grade, is_active, owner_id, created_at FROM students%s ORDER BY %s %s LIMIT $%d OFFSET $%d",
-		where, sort, order, len(args)-1, len(args),
-	)
-
-	rows, err := r.DB.Query(ctx, sqlText, args...)
+	rows, err := r.DB.Query(ctx, fmt.Sprintf(`
+		SELECT id, nim, name, grade, is_active, owner_id, created_at
+		FROM students%s
+		ORDER BY id DESC
+		LIMIT $%d
+	`, where, len(args)+1), append(args, limit+1)...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("ambil daftar student: %w", err)
+		return nil, fmt.Errorf("filter students: %w", err)
 	}
 	defer rows.Close()
-
-	students := []model.Student{}
-	for rows.Next() {
-		var s model.Student
-		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.OwnerID, &s.CreatedAt); err != nil {
-			return nil, 0, fmt.Errorf("baca baris student: %w", err)
-		}
-		students = append(students, s)
-	}
-	return students, total, rows.Err()
+	return scanStudents(rows)
 }
 
 // GetByID mengambil satu mahasiswa berdasarkan id.

@@ -3,6 +3,7 @@ package service
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -10,6 +11,9 @@ import (
 	"latihan-fiber/app/repository"
 	"latihan-fiber/helper"
 )
+
+// studentCSVHeaders adalah urutan kolom pada response CSV.
+var studentCSVHeaders = []string{"id", "nim", "name", "is_active", "created_at"}
 
 // StudentService adalah struct konkret (tanpa interface) sesuai gaya
 // landing-page. Ia memegang repository langsung lewat field Repo.
@@ -51,28 +55,74 @@ func idParam(c *fiber.Ctx) int {
 	return id
 }
 
-// List menampilkan daftar mahasiswa dengan paginasi.
+// List menampilkan daftar mahasiswa dengan cursor pagination dan
+// content negotiation (JSON default atau CSV bila Accept meminta).
+//
+// Alur:
+//  1. Negotiate format SEBELUM query DB; gagal -> 406.
+//  2. Decode cursor; gagal -> 400 INVALID_CURSOR.
+//  3. Query repo (List atau FindAfterCursor).
+//  4. Potong limit+1, isi meta.
+//  5. Render sesuai format yang diminta.
 func (s StudentService) List(c *fiber.Ctx) error {
-	q := fromQueryString(c)
-	if !sortColumns[q.Sort] {
-		q.Sort = "id"
+	if err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV); err != nil {
+		return err
 	}
-	if q.Order != "desc" {
-		q.Order = "asc"
+	format := helper.ChosenFormat(c)
+
+	limit := c.QueryInt("limit", 10)
+	if limit <= 0 || limit > 50 {
+		limit = 10
+	}
+	cursorStr := c.Query("cursor")
+
+	var (
+		items []model.Student
+		err   error
+	)
+	if cursorStr == "" {
+		items, err = s.Repo.List(c.Context(), limit)
+	} else {
+		_, cursorID, derr := helper.DecodeCursor(cursorStr)
+		if derr != nil {
+			return helper.InvalidCursor()
+		}
+		items, err = s.Repo.FindAfterCursor(c.Context(), cursorID, limit)
+	}
+	if err != nil {
+		return translateError(err, "mahasiswa")
 	}
 
-	items, total, err := s.Repo.GetAll(c.Context(), q)
-	if err != nil {
-		return helper.Internal(err)
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+
+	meta := model.CursorMeta{
+		Limit:   limit,
+		HasMore: hasMore,
+	}
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		meta.NextCursor = helper.EncodeCursor(last.CreatedAt, last.ID)
+	}
+
+	if format == helper.FormatCSV {
+		rows := make([][]string, len(items))
+		for i, st := range items {
+			rows[i] = []string{
+				strconv.Itoa(st.ID),
+				st.NIM,
+				st.Name,
+				strconv.FormatBool(st.IsActive),
+				st.CreatedAt.Format(time.RFC3339),
+			}
+		}
+		return helper.WriteCSV(c, studentCSVHeaders, rows)
 	}
 	return c.JSON(fiber.Map{
-		"data":        items,
-		"page":        q.Page,
-		"limit":       q.Limit,
-		"total":       total,
-		"total_pages": CountTotalPages(total, q.Limit),
-		"sort":        q.Sort,
-		"order":       q.Order,
+		"data": items,
+		"meta": meta,
 	})
 }
 
