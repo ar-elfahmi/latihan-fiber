@@ -20,11 +20,7 @@ type StudentRepository struct {
 // sortColumns whitelist kolom ORDER BY supaya input mentah tidak pernah
 // disisipkan ke SQL.
 var sortColumns = map[string]bool{
-	"id":         true,
-	"nim":        true,
-	"name":       true,
-	"grade":      true,
-	"created_at": true,
+	"id": true, "nim": true, "name": true, "grade": true, "created_at": true,
 }
 
 // buildWhere menyusun klausa WHERE + daftar argumen dari ListQuery.
@@ -36,12 +32,12 @@ func buildWhere(q model.ListQuery) (string, []any) {
 	)
 
 	if q.Search != "" {
-		args = append(args, "%"+q.Search+"%")
-		clauses = append(clauses, fmt.Sprintf("name ILIKE $%d", len(args)))
+		args = append(args, "%"+strings.ToLower(q.Search)+"%")
+		clauses = append(clauses, "(LOWER(name) LIKE $"+fmt.Sprint(len(args))+" OR LOWER(nim) LIKE $"+fmt.Sprint(len(args))+")")
 	}
 	if q.IsActive != nil {
 		args = append(args, *q.IsActive)
-		clauses = append(clauses, fmt.Sprintf("is_active = $%d", len(args)))
+		clauses = append(clauses, "is_active = $"+fmt.Sprint(len(args)))
 	}
 
 	if len(clauses) == 0 {
@@ -73,7 +69,7 @@ func (r StudentRepository) GetAll(ctx context.Context, q model.ListQuery) ([]mod
 	// Tambahkan LIMIT/OFFSET di akhir query.
 	args = append(args, q.Limit, q.Offset())
 	sqlText := fmt.Sprintf(
-		"SELECT id, nim, name, grade, is_active, created_at FROM students%s ORDER BY %s %s LIMIT $%d OFFSET $%d",
+		"SELECT id, nim, name, grade, is_active, owner_id, created_at FROM students%s ORDER BY %s %s LIMIT $%d OFFSET $%d",
 		where, sort, order, len(args)-1, len(args),
 	)
 
@@ -86,7 +82,7 @@ func (r StudentRepository) GetAll(ctx context.Context, q model.ListQuery) ([]mod
 	students := []model.Student{}
 	for rows.Next() {
 		var s model.Student
-		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.OwnerID, &s.CreatedAt); err != nil {
 			return nil, 0, fmt.Errorf("baca baris student: %w", err)
 		}
 		students = append(students, s)
@@ -99,9 +95,9 @@ func (r StudentRepository) GetAll(ctx context.Context, q model.ListQuery) ([]mod
 func (r StudentRepository) GetByID(ctx context.Context, id int) (model.Student, error) {
 	var s model.Student
 	err := r.DB.QueryRow(ctx,
-		`SELECT id, nim, name, grade, is_active, created_at FROM students WHERE id = $1`,
+		`SELECT id, nim, name, grade, is_active, owner_id, created_at FROM students WHERE id = $1`,
 		id,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.OwnerID, &s.CreatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -112,13 +108,25 @@ func (r StudentRepository) GetByID(ctx context.Context, id int) (model.Student, 
 	return s, nil
 }
 
-// Create menyimpan mahasiswa baru. Mengembalikan ErrDuplicate bila NIM sudah ada.
+// Create menyimpan mahasiswa baru.
+// Modul 6: owner_id dikirim dari service (bukan body). Kalau nil ->
+// disimpan NULL (record "global" yang hanya boleh diakses via :any).
+// Mengembalikan ErrDuplicate bila NIM sudah ada.
 func (r StudentRepository) Create(ctx context.Context, s model.Student) (model.Student, error) {
+	// Parameter nil untuk owner akan disimpan pgx sebagai NULL di kolom
+	// owner_id (record "belum ada pemilik"). Parameter yang dipakai:
+	// $1=NIM, $2=name, $3=grade, $4=is_active, $5=*int (owner) atau nil.
+	var owner any
+	if s.OwnerID != nil {
+		owner = *s.OwnerID
+	} else {
+		owner = nil
+	}
 	err := r.DB.QueryRow(ctx,
-		`INSERT INTO students (nim, name, grade, is_active)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO students (nim, name, grade, is_active, owner_id)
+		 VALUES ($1, $2, $3, $4, $5)
 		 RETURNING id, created_at`,
-		s.NIM, s.Name, s.Grade, s.IsActive,
+		s.NIM, s.Name, s.Grade, s.IsActive, owner,
 	).Scan(&s.ID, &s.CreatedAt)
 
 	if err != nil {
@@ -136,9 +144,9 @@ func (r StudentRepository) Replace(ctx context.Context, s model.Student) (model.
 		`UPDATE students
 		 SET nim = $1, name = $2, grade = $3, is_active = $4
 		 WHERE id = $5
-		 RETURNING id, nim, name, grade, is_active, created_at`,
+		 RETURNING id, nim, name, grade, is_active, owner_id, created_at`,
 		s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.OwnerID, &s.CreatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
