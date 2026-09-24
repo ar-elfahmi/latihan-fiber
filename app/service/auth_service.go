@@ -10,12 +10,15 @@ import (
 )
 
 // AuthService mengurus login: cek akun di tabel users, lalu terbitkan token JWT.
+// Modul 6: permission tidak disisipkan ke token; middleware.Protect akan
+// mengambilnya langsung dari tabel RBAC saat request berikutnya.
 type AuthService struct {
 	Repo   repository.UserRepository
+	RBAC   repository.RBACRepository // saat ini unused; disimpan untuk kompatibilitas wiring
 	Secret []byte // kunci tanda tangan token, dibaca dari JWT_SECRET di .env
 }
 
-// Login memeriksa username + password, lalu memberi token JWT bila benar.
+// Login memeriksa username + password, lalu memberi token JWT.
 // Alur: baca body -> validasi -> cari user -> cocokkan password -> buat token.
 func (s AuthService) Login(c *fiber.Ctx) error {
 	// 1. Baca body JSON.
@@ -36,8 +39,7 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 		return helper.Error(c, 401, "username atau password salah")
 	}
 
-	// 4. Buat token dan kirimkan ke client. Simpan token ini untuk
-	//    header Authorization pada request berikutnya.
+	// 4. Buat token dan kirimkan ke client.
 	token, err := MakeToken(u.ID, u.Username, s.Secret)
 	if err != nil {
 		return helper.Error(c, 500, "gagal membuat token")
