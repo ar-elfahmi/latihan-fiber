@@ -46,6 +46,21 @@ func newValidator() *validator.Validate {
 		return true
 	})
 
+	// nimformat: NIM harus 8-12 digit angka. Dipakai entity students
+	// (Modul 7 Tugas Mandiri D.2).
+	_ = v.RegisterValidation("nimformat", func(fl validator.FieldLevel) bool {
+		s := fl.Field().String()
+		if len(s) < 8 || len(s) > 12 {
+			return false
+		}
+		for _, r := range s {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+		return true
+	})
+
 	// passwordStrength mengembalikan "" untuk password kuat, dan pesan
 	// alasan untuk password lemah. Tag strongpassword valid saat
 	// passwordStrength kosong (== "").
@@ -112,6 +127,8 @@ func messageFor(fe validator.FieldError) string {
 		return "tidak boleh mengandung spasi"
 	case "username":
 		return "hanya boleh huruf, angka, titik, dan garis bawah"
+	case "nimformat":
+		return "nim harus 8-12 digit angka"
 	case "strongpassword":
 		// Type assertion memakai bentuk DUA nilai, bukan satu. Bentuk
 		// satu nilai akan panic bila suatu saat tag ini terpasang pada

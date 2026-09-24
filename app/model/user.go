@@ -12,16 +12,6 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-// CursorMeta adalah metadata pagination cursor untuk ListUserResponse.
-// Tanpa Total/TotalPages: cursor pagination tidak menjamin jumlah
-// total baris karena OFFSET tidak dipakai. Client cukup mengikuti
-// next_cursor hingga has_more=false.
-type CursorMeta struct {
-	Limit      int    `json:"limit"`
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-}
-
 // AuthUser adalah identitas pemanggil yang sudah terverifikasi.
 // Diisi middleware.Protect dari klaim token, lalu dibaca service
 // untuk pemeriksaan kepemilikan (dipakai CanAccessStudent).

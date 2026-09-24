@@ -14,27 +14,30 @@ type Student struct {
 }
 
 // CreateStudentRequest adalah body POST /students.
+// Validasi sepenuhnya lewat tag validate; tidak ada pemeriksaan manual
+// tambahan di service.
 type CreateStudentRequest struct {
-	NIM      string  `json:"nim"`
-	Name     string  `json:"name"`
-	Grade    float64 `json:"grade"`
+	NIM      string  `json:"nim"      validate:"required,nimformat,max=20"`
+	Name     string  `json:"name"     validate:"required,min=1,max=255"`
+	Grade    float64 `json:"grade"    validate:"min=0,max=4"`
 	IsActive bool    `json:"is_active"`
 }
 
 // ReplaceStudentRequest adalah body PUT /students/:id (ganti seluruh field).
 type ReplaceStudentRequest struct {
-	NIM      string  `json:"nim"`
-	Name     string  `json:"name"`
-	Grade    float64 `json:"grade"`
+	NIM      string  `json:"nim"      validate:"required,nimformat,max=20"`
+	Name     string  `json:"name"     validate:"required,min=1,max=255"`
+	Grade    float64 `json:"grade"    validate:"min=0,max=4"`
 	IsActive bool    `json:"is_active"`
 }
 
 // PatchStudentRequest adalah body PATCH /students/:id (ubah sebagian).
-// Field bertipe pointer: nil artinya tidak dikirim / tidak diubah.
+// Field bertipe pointer dan tag omitnil: field yang tidak dikirim
+// (nil) dilewati; field yang dikirim divalidasi sesuai tag.
 type PatchStudentRequest struct {
-	NIM      *string  `json:"nim,omitempty"`
-	Name     *string  `json:"name,omitempty"`
-	Grade    *float64 `json:"grade,omitempty"`
+	NIM      *string  `json:"nim,omitempty"      validate:"omitnil,required,nimformat,max=20"`
+	Name     *string  `json:"name,omitempty"     validate:"omitnil,required,min=1,max=255"`
+	Grade    *float64 `json:"grade,omitempty"    validate:"omitnil,min=0,max=4"`
 	IsActive *bool    `json:"is_active,omitempty"`
 }
 
@@ -48,7 +51,7 @@ type ListQuery struct {
 	IsActive *bool  // ?is_active=
 }
 
-// Offset dipakai di query SQL LIMIT/OFFSET.
+// Offset dipakai di query SQL LIMIT/OFFSET (legacy; D.3 pakai cursor).
 func (q ListQuery) Offset() int {
 	return (q.Page - 1) * q.Limit
 }

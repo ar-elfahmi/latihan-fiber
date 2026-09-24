@@ -10,51 +10,18 @@ import (
 // Cukup panggil fungsi, cocokkan hasilnya. Inilah gunanya file rules
 // dipisah dari handler: bisa dites terisolasi.
 
-func TestValidateCreate(t *testing.T) {
-	cases := []struct {
-		name string
-		req  model.CreateStudentRequest
-		want int
-	}{
-		{"semua kosong", model.CreateStudentRequest{}, 2},
-		{"grade di luar batas", model.CreateStudentRequest{NIM: "434241047", Name: "Alfian", Grade: 4.5}, 1},
-		{"data valid", model.CreateStudentRequest{NIM: "434241047", Name: "Alfian", Grade: 3.5}, 0},
-	}
-	for _, tc := range cases {
-		if got := len(ValidateCreate(tc.req)); got != tc.want {
-			t.Errorf("%s: harap %d error, dapat %d", tc.name, tc.want, got)
-		}
-	}
-}
-
-func TestValidateReplace(t *testing.T) {
-	cases := []struct {
-		name string
-		req  model.ReplaceStudentRequest
-		want int
-	}{
-		{"PUT wajib isi semua", model.ReplaceStudentRequest{}, 2},
-		{"PUT valid", model.ReplaceStudentRequest{NIM: "434241047", Name: "Alfian", Grade: 3}, 0},
-	}
-	for _, tc := range cases {
-		if got := len(ValidateReplace(tc.req)); got != tc.want {
-			t.Errorf("%s: harap %d error, dapat %d", tc.name, tc.want, got)
-		}
-	}
-}
-
 func TestApplyPatch(t *testing.T) {
 	initial := model.Student{ID: 1, NIM: "434241047", Name: "Alfian", Grade: 3.5, IsActive: true}
 	inactive := false
-	updated, errs := ApplyPatch(initial, model.PatchStudentRequest{IsActive: &inactive})
-	if len(errs) != 0 {
-		t.Fatalf("tidak seharusnya ada error: %v", errs)
-	}
+	updated := ApplyPatch(initial, model.PatchStudentRequest{IsActive: &inactive})
 	if updated.IsActive {
 		t.Error("is_active seharusnya berubah menjadi false")
 	}
 	if updated.Name != "Alfian" {
 		t.Error("field yang tidak dikirim seharusnya tidak berubah")
+	}
+	if updated.NIM != "434241047" {
+		t.Error("nim yang tidak dikirim seharusnya tidak berubah")
 	}
 }
 

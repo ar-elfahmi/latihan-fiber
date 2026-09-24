@@ -111,7 +111,7 @@ func (s StudentService) Create(c *fiber.Ctx) error {
 	if err := helper.ParseBody(c, &req); err != nil {
 		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
-	if errs := ValidateCreate(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 	actor := CurrentUserID(c)
@@ -147,7 +147,7 @@ func (s StudentService) Replace(c *fiber.Ctx) error {
 	if err := helper.ParseBody(c, &req); err != nil {
 		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
-	if errs := ValidateReplace(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 	st := model.Student{
@@ -180,14 +180,14 @@ func (s StudentService) Patch(c *fiber.Ctx) error {
 	if IsEmptyPatch(req) {
 		return helper.Validation(map[string]string{"body": "tidak ada field yang dikirim"})
 	}
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+		return helper.Validation(errs)
+	}
 	st, err := s.Repo.GetByID(c.Context(), id)
 	if err != nil {
 		return translateError(err, "mahasiswa")
 	}
-	updated, errs := ApplyPatch(st, req)
-	if len(errs) > 0 {
-		return helper.Validation(errs)
-	}
+	updated := ApplyPatch(st, req)
 	saved, err := s.Repo.Replace(c.Context(), updated)
 	if err != nil {
 		return translateError(err, "mahasiswa")
