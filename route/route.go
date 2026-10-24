@@ -1,10 +1,16 @@
 package route
 
 import (
+	"context"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"latihan-fiber/app/repository"
 	"latihan-fiber/app/service"
+	"latihan-fiber/helper"
 	"latihan-fiber/middleware"
 )
 
@@ -12,13 +18,11 @@ import (
 // Tiap endpoint satu baris; aturan/bisnis ada di service.
 // Modul 6: protect + permission dipasang per method agar authorization
 // tidak bergantung pada isi data (pemilikan dicek service).
-func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, jwtSecret []byte) {
+func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, jwtSecret []byte, pool *pgxpool.Pool, mongoClient *mongo.Client) {
 	api := app.Group("/api/v1")
 
 	// Health check
-	api.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
-	})
+	api.Get("/health", healthCheck(pool, mongoClient))
 
 	// Login: terbitkan token JWT (tidak perlu token untuk masuk ke sini).
 	api.Post("/auth/login", s.Auth.Login)
@@ -66,4 +70,24 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 		middleware.RequirePermission("user:list"),
 		s.User.List,
 	)
+}
+
+func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			return helper.ServiceUnavailable("PostgreSQL tidak dapat dihubungi")
+		}
+		if err := mongoClient.Ping(ctx, nil); err != nil {
+			return helper.ServiceUnavailable("MongoDB tidak dapat dihubungi")
+		}
+
+		// Pakai c.JSON seperti kode lain di repo ini
+		return c.JSON(fiber.Map{
+			"status":  "ok",
+			"message": "server, PostgreSQL, dan MongoDB berjalan",
+		})
+	}
 }

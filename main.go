@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -28,6 +29,19 @@ func main() {
 	}
 	defer db.Close()
 
+	mongoClient, err := database.NewMongoClient(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    _ = mongoClient.Disconnect(ctx)
+	}()
+
+	mongoDB := mongoClient.Database(config.GetWithDefault("MONGO_DATABASE", "praktikum_backend"))
+	_ = mongoDB
+
 	studentRepo := repository.StudentRepository{DB: db}
 	prestasiRepo := repository.PrestasiRepository{DB: db}
 	userRepo := repository.UserRepository{DB: db}
@@ -46,7 +60,7 @@ func main() {
 	app := fiber.New(fiber.Config{ErrorHandler: config.ErrorHandler})
 	app.Use(middleware.Logger)
 	// Protect butuh rbacRepo untuk fetch permission live (Modul 6).
-	route.Setup(app, svc, rbacRepo, secret)
+	route.Setup(app, svc, rbacRepo, secret, db, mongoClient)
 	// 4. Penampung 404 (URL tidak dikenal). Dikembalikan sebagai
 	// *AppError agar ErrorHandler membentuk JSON seragam.
 	app.Use(func(c *fiber.Ctx) error {
