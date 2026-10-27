@@ -5,6 +5,7 @@ server.log
 logs/
 daftar tugas
 latihan-fiber.exe
+latihan-fiber.sql
 run-tests.ps1
 run-tests.sh
 AGENTS.md
