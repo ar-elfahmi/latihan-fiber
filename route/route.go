@@ -70,6 +70,32 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 		middleware.RequirePermission("user:list"),
 		s.User.List,
 	)
+
+	// --- Portofolio mahasiswa (MongoDB) ---
+	// Permission memakai permission mahasiswa yang sudah ada; kepemilikan
+	// dicek lagi di service (student:read:self / student:update:self).
+	st.Get("/:id/portfolio",
+		middleware.RequirePermission("student:read:any", "student:read:self"),
+		s.Portfolio.Get,
+	)
+	st.Put("/:id/portfolio",
+		middleware.RequirePermission("student:update:any", "student:update:self"),
+		s.Portfolio.Upsert,
+	)
+	st.Post("/:id/portfolio/projects",
+		middleware.RequirePermission("student:update:any", "student:update:self"),
+		s.Portfolio.AddProject,
+	)
+	st.Delete("/:id/portfolio/projects/:projectId",
+		middleware.RequirePermission("student:update:any", "student:update:self"),
+		s.Portfolio.DeleteProject,
+	)
+
+	// --- Stats teknologi (publik setelah login) ---
+	api.Get("/portfolios/stats/technologies",
+		middleware.RequirePermission("student:read:any", "student:read:self"),
+		s.Portfolio.StatsTechnologies,
+	)
 }
 
 func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {

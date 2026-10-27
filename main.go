@@ -34,13 +34,17 @@ func main() {
 		log.Fatal(err)
 	}
 	defer func() {
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    _ = mongoClient.Disconnect(ctx)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = mongoClient.Disconnect(ctx)
 	}()
 
 	mongoDB := mongoClient.Database(config.GetWithDefault("MONGO_DATABASE", "praktikum_backend"))
-	_ = mongoDB
+
+	portfolioRepo := repository.NewPortfolioRepository(mongoDB)
+	if err := portfolioRepo.EnsureIndexes(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 
 	studentRepo := repository.StudentRepository{DB: db}
 	prestasiRepo := repository.PrestasiRepository{DB: db}
@@ -54,6 +58,10 @@ func main() {
 		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
 		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Secret: secret},
 		User:     service.UserService{Repo: userRepo},
+		Portfolio: service.PortfolioService{
+			Repo:        portfolioRepo,
+			StudentRepo: studentRepo,
+		},
 	}
 
 	// 3. Fiber + middleware + route.
