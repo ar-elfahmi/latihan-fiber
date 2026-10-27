@@ -23,6 +23,7 @@ import (
 //
 //	repository.ErrNotFound / ErrStudentNotFound -> helper.NotFound(resource)
 //	repository.ErrDuplicate                    -> helper.Conflict("data sudah ada")
+//	repository.ErrProjectLimit                 -> helper.Conflict("jumlah proyek sudah mencapai batas")
 //	pg 23505 (unique)                          -> helper.Conflict("data sudah ada")
 //	pg 23503 (foreign key)                     -> helper.BadRequest("referensi tidak valid")
 //	pg 23502 (not null)                        -> helper.BadRequest("field wajib tidak diisi")
@@ -37,6 +38,9 @@ func translateError(err error, resource string) *helper.AppError {
 	}
 	if errors.Is(err, repository.ErrDuplicate) {
 		return helper.Conflict("data sudah ada")
+	}
+	if errors.Is(err, repository.ErrProjectLimit) {
+		return helper.Conflict("jumlah proyek sudah mencapai batas")
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
