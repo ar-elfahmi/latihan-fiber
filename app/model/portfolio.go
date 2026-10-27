@@ -29,8 +29,9 @@ type Certificate struct {
 
 // Untuk PUT /students/:id/portfolio
 type UpsertPortfolioRequest struct {
-    Headline string        `json:"headline" validate:"required,max=200"`
-    Bio      string        `json:"bio"      validate:"required,max=1000"`
+    Headline     string             `json:"headline"     validate:"required,max=200"`
+    Bio          string             `json:"bio"          validate:"required,max=1000"`
+    Certificates []CertificateInput `json:"certificates" validate:"omitempty,max=20,dive"`
 }
 
 // Untuk POST /students/:id/portfolio/projects
