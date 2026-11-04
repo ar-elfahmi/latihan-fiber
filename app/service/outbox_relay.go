@@ -59,10 +59,10 @@ func (r OutboxRelay) RelayOnce(ctx context.Context) (int, error) {
 
 		ids := make([]int64, 0, len(events))
 		for _, event := range events {
-			ids = append(ids, event.ID)
 			if enqueueErr = r.publish(ctx, event); enqueueErr != nil {
 				break
 			}
+			ids = append(ids, event.ID)
 		}
 		if len(ids) > 0 {
 			if err := outbox.MarkPublished(ctx, ids); err != nil {
