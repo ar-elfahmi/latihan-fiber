@@ -18,7 +18,7 @@ func (r NotificationRepository) WithTx(tx pgx.Tx) NotificationRepository {
 
 func (r NotificationRepository) Claim(ctx context.Context, n model.Notification) (bool, error) {
 	tag, err := r.DB.Exec(ctx, `INSERT INTO notifications (outbox_id, user_id, channel, subject, body)
-		VALUES ($1, $2, $3, $4, $5) ON CONFLICT (outbox_id) DO NOTHING`,
+		VALUES ($1, $2, $3, $4, $5) ON CONFLICT (outbox_id, user_id) DO NOTHING`,
 		n.OutboxID, n.UserID, n.Channel, n.Subject, n.Body)
 	return tag.RowsAffected() == 1, err
 }

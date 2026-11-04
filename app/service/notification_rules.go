@@ -25,6 +25,9 @@ func BuildMessage(eventType string, event model.EnrollmentEvent, user model.User
 		from := event.FromCourseCode + " " + event.FromCourseName
 		subject = "KRS: pindah dari " + from + " ke " + course
 		body = fmt.Sprintf("Halo %s, Anda telah pindah dari kelas %s ke kelas %s.", user.Username, from, course)
+	case model.EventCourseQuotaChanged:
+		subject = fmt.Sprintf("KRS: kuota %s berubah menjadi %d", course, event.Quota)
+		body = fmt.Sprintf("Halo %s, kuota kelas %s sekarang %d.", user.Username, course, event.Quota)
 	default:
 		return model.Message{}, fmt.Errorf("%w: %q", errUnknownEvent, eventType)
 	}

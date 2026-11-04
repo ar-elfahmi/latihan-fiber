@@ -30,10 +30,25 @@ func (w NotificationWorker) HandleSend(ctx context.Context, task *asynq.Task) er
 	if err := json.Unmarshal(job.Payload, &event); err != nil {
 		return fmt.Errorf("%w: payload event %d rusak: %v", asynq.SkipRetry, job.OutboxID, err)
 	}
+	if job.EventType == model.EventCourseQuotaChanged {
+		var permanentErr error
+		for _, userID := range event.RecipientIDs {
+			if err := w.send(ctx, job, event, userID); err != nil {
+				if !errors.Is(err, asynq.SkipRetry) {
+					return err
+				}
+				permanentErr = errors.Join(permanentErr, err)
+			}
+		}
+		return permanentErr
+	}
+	return w.send(ctx, job, event, event.UserID)
+}
 
-	user, err := w.Users.FindByID(ctx, event.UserID)
+func (w NotificationWorker) send(ctx context.Context, job model.NotificationJob, event model.EnrollmentEvent, userID int) error {
+	user, err := w.Users.FindByID(ctx, userID)
 	if errors.Is(err, repository.ErrNotFound) {
-		return fmt.Errorf("%w: user %d tidak ditemukan", asynq.SkipRetry, event.UserID)
+		return fmt.Errorf("%w: user %d tidak ditemukan", asynq.SkipRetry, userID)
 	}
 	if err != nil {
 		return err
@@ -45,7 +60,7 @@ func (w NotificationWorker) HandleSend(ctx context.Context, task *asynq.Task) er
 
 	alreadySent := false
 	err = pgx.BeginFunc(ctx, w.Users.DB, func(tx pgx.Tx) error {
-		claimed, err := w.Notifications.Claim(ctx, model.Notification{
+		claimed, err := w.Notifications.WithTx(tx).Claim(ctx, model.Notification{
 			OutboxID: job.OutboxID, UserID: user.ID, Channel: "email",
 			Subject: message.Subject, Body: message.Body,
 		})
@@ -54,12 +69,12 @@ func (w NotificationWorker) HandleSend(ctx context.Context, task *asynq.Task) er
 		}
 		if !claimed {
 			alreadySent = true
-			return errors.New("claim notifikasi berhasil dibuat")
+			return nil
 		}
 		return w.Mailer.Send(ctx, message)
 	})
 	if errors.Is(err, helper.ErrPermanentDelivery) {
-		return fmt.Errorf("%v: %w", asynq.SkipRetry, err)
+		return fmt.Errorf("%w: %v", asynq.SkipRetry, err)
 	}
 	if err != nil {
 		return err

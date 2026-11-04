@@ -172,17 +172,32 @@ func drop(ctx context.Context, tx pgx.Tx, userID, courseID int) error {
 }
 
 func (r CourseRepository) UpdateQuota(ctx context.Context, courseID int, req model.UpdateQuotaRequest) (model.Course, error) {
-	course, err := scanCourse(r.DB.QueryRow(ctx, `UPDATE courses SET quota = $2, version = version + 1
-		WHERE id = $1 AND version = $3 AND enrolled_count <= $2 RETURNING `+courseColumns,
-		courseID, req.Quota, req.Version))
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return course, err
-	}
-
-	var id int
-	err = r.DB.QueryRow(ctx, "SELECT id FROM courses WHERE id = $1", courseID).Scan(&id)
-	if err != nil {
-		return model.Course{}, err
-	}
-	return model.Course{}, ErrQuotaConflict
+	var course model.Course
+	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
+		var err error
+		course, err = scanCourse(tx.QueryRow(ctx, `UPDATE courses SET quota = $2, version = version + 1
+			WHERE id = $1 AND version = $3 AND enrolled_count <= $2 RETURNING `+courseColumns,
+			courseID, req.Quota, req.Version))
+		if errors.Is(err, pgx.ErrNoRows) {
+			var id int
+			if err := tx.QueryRow(ctx, "SELECT id FROM courses WHERE id = $1", courseID).Scan(&id); err != nil {
+				return err
+			}
+			return ErrQuotaConflict
+		}
+		if err != nil {
+			return err
+		}
+		var recipients []int
+		err = tx.QueryRow(ctx, `SELECT array_agg(user_id ORDER BY user_id)
+			FROM enrollments WHERE course_id = $1`, courseID).Scan(&recipients)
+		if err != nil {
+			return err
+		}
+		return (OutboxRepository{DB: tx}).Insert(ctx, model.EventCourseQuotaChanged, model.EnrollmentEvent{
+			CourseID: course.ID, CourseCode: course.Code, CourseName: course.Name,
+			Quota: course.Quota, RecipientIDs: recipients,
+		})
+	})
+	return course, err
 }
