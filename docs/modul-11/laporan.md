@@ -23,7 +23,7 @@ Isi satu baris untuk tiap kesalahan bawaan modul. Untuk kesalahan yang lolos com
 | 3 | `app/repository/course_repository.go`, `Drop` (Langkah 6 PDF) | Keluar kelas berhasil, tetapi tercatat sebagai `enrollment.created` | DELETE pendaftaran IF101 dan kueri jenis event terbaru | `Drop` memakai konstanta untuk pendaftaran | Mengganti konstanta menjadi `model.EventEnrollmentDropped` |
 | 4 | `app/service/outbox_relay.go`, `publish` (Langkah 7 PDF) | Build gagal pada pemanggilan `asynq.NewTask` | `go build` | Payload berupa struct `NotificationJob`, sedangkan Asynq menerima `[]byte` | Mengubah payload menjadi JSON dengan `json.Marshal` dan menangani error serialisasi |
 | 5 | `app/service/notification_worker.go`, `HandleSend` (Langkah 8 PDF) | Build gagal saat handler didaftarkan di `worker.go` | `go build .` | Parameter handler berupa `asynq.Task`, sedangkan `mux.HandleFunc` mengharapkan `*asynq.Task` | Mengubah tipe parameter menjadi `*asynq.Task` |
-| 6 | [ISI] | | | | |
+| 6 | `config/queue.go`, `NewWorkerServer` (Langkah 9 PDF) | Pendaftaran berhasil, tetapi daftar notifikasi kosong dan satu task menunggu di Redis | `GET /api/v1/notifications/mine` sebelum dan sesudah worker dimulai ulang | Worker mendengarkan `notification:send`, sedangkan relay mengirim ke antrean `notifications` | Mengatur worker agar mendengarkan `model.QueueNotifications` |
 | 7 | [ISI] | | | | |
 | 8 | [ISI] | | | | |
 | 9 | [ISI] | | | | |
@@ -70,6 +70,14 @@ Perintah `go build .` gagal saat `worker.HandleSend` didaftarkan ke `mux.HandleF
 
 **[D1-08 — Tempel setelah D1-07. Tampilkan perintah `go build .` dan prompt yang kembali tanpa error. Caption: Build berhasil setelah parameter `HandleSend` memakai `*asynq.Task`.]**
 
+**Temuan 6 — Worker mendengarkan antrean yang keliru**
+
+Setelah akun `mhstahap2` mendaftar ke IF102, `GET /api/v1/notifications/mine` mengembalikan HTTP 200 dengan isi `[]`. Pemeriksaan Redis menunjukkan satu task menunggu di antrean `notifications`, sementara worker dikonfigurasi untuk mendengarkan `notification:send`, yaitu jenis task. Konfigurasi diganti ke `model.QueueNotifications` dan worker dimulai ulang. Request GET yang sama kemudian mengembalikan satu notifikasi dengan `outbox_id: 7` tanpa mengulang pendaftaran.
+
+**[D1-09 — Tempel di Word, BAB II → 2.1, setelah narasi Temuan 6. Tampilkan GET, URL, HTTP 200, dan respons kosong. Caption: Pendaftaran IF102 berhasil, tetapi daftar notifikasi akun uji masih kosong.]**
+
+**[D1-10 — Tempel setelah D1-09. Tampilkan GET yang sama, HTTP 200, dan satu notifikasi dengan outbox_id 7. Caption: Setelah nama antrean diperbaiki, worker memproses event IF102.]**
+
 ## D.2 Notifikasi Perubahan Kuota
 
 [ISI: jelaskan transaksi perubahan kuota, migration 009, kunci idempotensi, dan cara worker melanjutkan pengiriman saat retry. Sisipkan SQL migration dan potongan kode penting.]
@@ -81,6 +89,14 @@ Perintah `go build .` gagal saat `worker.HandleSend` didaftarkan ke `mux.HandleF
 ## D.3 Bukti Pengujian
 
 Target berikut berasal dari modul. Ganti penanda hasil setelah setiap uji.
+
+### Uji jalur dasar Tahap 2
+
+API dan worker dijalankan di dua proses. Redis lokal merespons `PONG`. Worker memakai `RELAY_AFTER_ID=6` pada database `praktikum_backend`, sehingga lima event pending Tahap 1 berada di luar cakupan relay selama uji. Satu request `POST /api/v1/courses/2/enroll` untuk akun `mhstahap2` (ID 7) menghasilkan pendaftaran IF102. Setelah perbaikan antrean, API menampilkan satu notifikasi email dengan `outbox_id: 7`, dan pencarian berdasarkan penerima serta subjek di `logs/mail.log` menemukan tepat satu baris.
+
+**[T2-01 — Tempel di Word pada D.3 → Uji jalur dasar Tahap 2. Tampilkan POST pendaftaran dan respons yang memuat IF102. Caption: Akun uji berhasil terdaftar di IF102.]**
+
+**[T2-02 — Tempel setelah T2-01. Tampilkan perintah Select-String dan satu baris yang cocok di logs/mail.log. Caption: Pendaftaran IF102 menghasilkan satu email tiruan untuk akun uji.]**
 
 ### C.1 Jalur normal
 

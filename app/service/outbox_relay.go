@@ -21,6 +21,7 @@ type OutboxRelay struct {
 	Queue    *asynq.Client
 	Interval time.Duration
 	Batch    int
+	AfterID  int64
 }
 
 func (r OutboxRelay) Run(ctx context.Context) {
@@ -51,7 +52,7 @@ func (r OutboxRelay) RelayOnce(ctx context.Context) (int, error) {
 
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
 		outbox := repository.OutboxRepository{DB: tx}
-		events, err := outbox.FetchUnpublished(ctx, r.Batch)
+		events, err := outbox.FetchUnpublished(ctx, r.AfterID, r.Batch)
 		if err != nil {
 			return err
 		}

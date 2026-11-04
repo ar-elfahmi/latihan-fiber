@@ -38,6 +38,9 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 	api.Post("/enrollments/swap", middleware.RequirePermission("course:enroll"), s.Course.Swap)
 	api.Patch("/courses/:id", middleware.RequirePermission("course:manage"), s.Course.UpdateQuota)
 
+	api.Get("/notifications/mine", s.Notification.Mine)
+	api.Get("/admin/queue", middleware.RequirePermission("queue:monitor"), s.Notification.Monitor)
+
 	// --- Daftar prestasi (global) ---
 	api.Get("/prestasi",
 		middleware.RequirePermission("prestasi:list"),

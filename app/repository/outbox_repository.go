@@ -35,9 +35,10 @@ func (r OutboxRepository) Insert(ctx context.Context, eventType string, event mo
 	return err
 }
 
-func (r OutboxRepository) FetchUnpublished(ctx context.Context, limit int) ([]model.OutboxEvent, error) {
+func (r OutboxRepository) FetchUnpublished(ctx context.Context, afterID int64, limit int) ([]model.OutboxEvent, error) {
 	rows, err := r.DB.Query(ctx, `SELECT id, event_type, payload, created_at
-		FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED`, limit)
+		FROM outbox WHERE published_at IS NULL AND id > $1
+		ORDER BY id LIMIT $2 FOR UPDATE SKIP LOCKED`, afterID, limit)
 	if err != nil {
 		return nil, err
 	}

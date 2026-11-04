@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/hibiken/asynq"
 
 	"latihan-fiber/app/repository"
 	"latihan-fiber/app/service"
@@ -20,7 +25,14 @@ func main() {
 	// 0. Baca file .env ke environment variable.
 	config.LoadEnv()
 
-	ctx := context.Background()
+	role := flag.String("role", config.GetWithDefault("APP_ROLE", "api"), "api | worker | all")
+	flag.Parse()
+	if *role != "api" && *role != "worker" && *role != "all" {
+		log.Fatalf("role tidak dikenal: %q", *role)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// 1. Buka koneksi database. Fatal bila gagal.
 	db, err := database.Connect(ctx)
@@ -28,6 +40,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	if *role == "worker" {
+		shutdown, err := startWorker(ctx, db)
+		if err != nil {
+			log.Fatal(err)
+		}
+		<-ctx.Done()
+		shutdown()
+		return
+	}
 
 	mongoClient, err := database.NewMongoClient(context.Background())
 	if err != nil {
@@ -52,6 +74,12 @@ func main() {
 	rbacRepo := repository.RBACRepository{DB: db}
 
 	secret := []byte(config.GetWithDefault("JWT_SECRET", "rahasia-latihan"))
+	inspector := asynq.NewInspector(config.RedisOpt())
+	defer func() {
+		if err := inspector.Close(); err != nil {
+			log.Printf("menutup inspector antrean: %v", err)
+		}
+	}()
 
 	svc := service.Services{
 		Student:  service.StudentService{Repo: studentRepo},
@@ -62,6 +90,11 @@ func main() {
 		Portfolio: service.PortfolioService{
 			Repo:        portfolioRepo,
 			StudentRepo: studentRepo,
+		},
+		Notification: service.NotificationService{
+			Notifications: repository.NotificationRepository{DB: db},
+			Outbox:        repository.OutboxRepository{DB: db},
+			Inspector:     inspector,
 		},
 	}
 
@@ -77,6 +110,28 @@ func main() {
 	})
 
 	port := config.GetWithDefault("APP_PORT", "3000")
+	if *role == "all" {
+		shutdown, err := startWorker(ctx, db)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer shutdown()
+	}
+
+	apiDone := make(chan error, 1)
 	log.Printf("server berjalan di :%s", port)
-	log.Fatal(app.Listen(":" + port))
+	go func() {
+		apiDone <- app.Listen(":" + port)
+	}()
+
+	select {
+	case err := <-apiDone:
+		if err != nil {
+			log.Printf("server HTTP berhenti: %v", err)
+		}
+	case <-ctx.Done():
+		if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+			log.Printf("shutdown HTTP: %v", err)
+		}
+	}
 }

@@ -51,6 +51,17 @@ func (r UserRepository) GetByUsername(ctx context.Context, username string) (mod
 	return u, nil
 }
 
+// FindByID mengambil identitas akun yang diperlukan untuk notifikasi.
+func (r UserRepository) FindByID(ctx context.Context, id int) (model.User, error) {
+	var user model.User
+	err := r.DB.QueryRow(ctx, `SELECT id, username, COALESCE(email, '') FROM users WHERE id = $1`, id).
+		Scan(&user.ID, &user.Username, &user.Email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.User{}, ErrNotFound
+	}
+	return user, err
+}
+
 // List mengambil halaman pertama user dengan urutan created_at DESC,
 // id DESC. Limit +1 dipakai untuk deteksi has_more di service.
 func (r UserRepository) List(ctx context.Context, limit int) ([]model.User, error) {
