@@ -80,11 +80,9 @@ Setelah akun `mhstahap2` mendaftar ke IF102, `GET /api/v1/notifications/mine` me
 
 ## D.2 Notifikasi Perubahan Kuota
 
-[ISI: jelaskan transaksi perubahan kuota, migration 009, kunci idempotensi, dan cara worker melanjutkan pengiriman saat retry. Sisipkan SQL migration dan potongan kode penting.]
+Migration 009 mengganti kunci unik menjadi `(outbox_id, user_id)`. Update kuota, snapshot ID peserta, dan insert event `course.quota_changed` berjalan dalam satu transaksi. Worker memakai transaksi claim terpisah untuk setiap penerima. Gagal sementara membatalkan claim penerima tersebut sehingga retry dapat melanjutkan pengiriman dan melewati penerima yang telah berhasil.
 
-[ISI: catat hasil pengujian dengan minimal lima peserta, kegagalan sementara, dan redelivery.]
-
-[BUKTI D2-01: tempel setelah hasil uji D.2. Tampilkan bukti kegagalan dan hitungan pengiriman per penerima setelah redelivery.]
+PATCH kelas 7 menghasilkan HTTP 200 dengan kuota 41 dan event ID 36 untuk lima peserta. Terjadi dua kegagalan sementara. Setelah retry dan satu redelivery, terdapat satu baris notifikasi dan satu baris email per penerima. Log redelivery menampilkan lima `already_sent=true`. Keluaran tersimpan di `logs/speed-quota.log` dan `logs/mail.log`.
 
 ## D.3 Bukti Pengujian
 
@@ -100,59 +98,79 @@ API dan worker dijalankan di dua proses. Redis lokal merespons `PONG`. Worker me
 
 ### C.1 Jalur normal
 
-[ISI: status lima request, empat event, empat notifikasi dengan urutan dan subjek yang sesuai, serta hitungan email.]
+Permintaan pindah dari kelas 2 (IF102) ke kelas 4 (IF302) menghasilkan HTTP 200 dan mengembalikan kelas tujuan IF302 Keamanan Informasi. Saat diagnosis, port 3000 mengembalikan halaman HTML JIA Admin. Bukti swap berhasil diambil setelah API praktikum dijalankan pada port 3001.
+
+**[C1-01e — Tempel di Word pada D.3 → C.1 Jalur normal. Tampilkan POST swap, body dengan kelas 2 dan 4, HTTP 200, serta kode IF302. Caption: API berhasil memindahkan KRS dari IF102 ke IF302.]**
+
+Kueri outbox untuk `mhsuji` menghasilkan empat event berurutan: `enrollment.created` (ID 1), `enrollment.dropped` (ID 3), `enrollment.created` (ID 4), dan `enrollment.swapped` (ID 5). Log email berisi tepat empat baris untuk `mhsuji@student.unair.ac.id`.
+
+**[C1-02b — Tempel di Word pada D.3 → C.1 Jalur normal. Tampilkan kueri dengan empat baris outbox serta perintah hitung email dengan hasil 4. Caption: Empat event KRS tercatat berurutan dan menghasilkan empat email tiruan.]**
+
+Screenshot Word mengonfirmasi status 201, 409 ALREADY_ENROLLED, 204, 201, dan 200. GET menampilkan empat notifikasi. Tiga objek terlipat pada screenshot sehingga ketiga subjek tersebut belum bisa diverifikasi dari gambar.
 
 
 ### C.2 Redis berhenti dan pulih
 
-[ISI: status dan durasi tiga pendaftaran, pending saat Redis mati, dan hasil setelah pulih.]
+Saat Redis mati, pendaftaran kelas 5, 6, dan 7 masing-masing berhasil dengan HTTP 201. Monitoring menampilkan `queue_error`, tetapi `outbox_pending` bernilai 0 (target 3), `outbox_published` naik dari 4 ke 7, dan `notifications_sent` tetap 4.
 
-[BUKTI C2-01: tempel setelah hasil saat Redis mati. Tampilkan respons 201 dan monitoring yang menunjukkan pending serta queue_error.]
+**[Bukti sebelum perbaikan — Tempel di Word pada D.3 → C.2. Caption: Saat Redis mati, tiga pendaftaran berhasil tetapi event langsung ditandai terbit.]**
 
-[BUKTI C2-02: tempel setelah hasil pemulihan. Tampilkan pending kembali 0 dan total notifikasi.]
+**Temuan 7 untuk D.1 — Event ditandai terbit saat Redis gagal menerima task.** Di `OutboxRelay.RelayOnce`, ID event semula ditambahkan ke daftar `MarkPublished` sebelum upaya enqueue. Pemanggilan `append` dipindah setelah pengecekan hasil enqueue, sehingga event yang gagal tetap menunggu dan bisa dicoba kembali.
+
+**[Bukti diff — Tempel di D.1 pada Temuan 7. Caption: ID event baru masuk ke daftar penandaan terbit setelah enqueue berhasil.]**
+
+Setelah perbaikan, worker dijalankan ulang dan status tiga event yang terdampak (ID 6–8) dikembalikan menjadi menunggu. Selama Redis mati, monitoring menunjukkan `outbox_pending: 3`, `outbox_published: 4`, dan `queue_error`. Setelah Redis dinyalakan, pending turun menjadi 0 dan total notifikasi terkirim naik dari 4 menjadi 7. Durasi tiga request dan waktu pemulihan belum terukur.
+
+**[Bukti setelah perbaikan — Tempel di D.3 → C.2. Caption: Tiga event tetap menunggu saat Redis mati dan seluruhnya diproses setelah Redis menyala kembali.]**
+
+Pengguna mengonfirmasi bukti tujuh notifikasi akun `mhsuji` telah disimpan sebelum reset berikutnya.
 
 ### C.3 Gagal sementara
 
-[ISI: konfigurasi simulasi, kegagalan yang terjadi, dan hitungan dari database, API, serta log email.]
+Pada uji `MAILER_FAIL_EVERY=3`, database mencatat 6 notifikasi, sedangkan log berisi 4 email untuk `mhsuji`. Selisih dua menunjukkan catatan notifikasi tersimpan meskipun pengiriman gagal.
 
-[BUKTI C3-01: tempel setelah hasil retry. Tampilkan log gagal sementara dan ketiga hitungan.]
+**Temuan 8 untuk D.1 — Claim notifikasi berada di luar transaksi.** `NotificationWorker.HandleSend` memulai transaksi, tetapi `Claim` semula memakai koneksi repository biasa. Perbaikan memakai `WithTx(tx)` agar pengembalian error dari mailer membatalkan claim dan retry dapat mengirim ulang.
+
+**[Bukti sebelum perbaikan — Tempel di D.3 pada uji gagal sementara. Caption: Database mencatat enam notifikasi, tetapi log hanya berisi empat email.]**
+
+**[Bukti diff — Tempel di D.1 pada Temuan 8. Caption: Claim notifikasi menggunakan transaksi pengiriman.]**
+
+Setelah perbaikan, API menampilkan enam notifikasi. Log worker mencatat dua kegagalan sementara dan dua pemrosesan ulang yang berhasil dengan `retry=1`. Pemeriksaan log email menunjukkan enam baris untuk akun uji.
 
 ### C.4 Gagal permanen
 
-[ISI: status pendaftaran, perubahan archived, nilai retry, dan jumlah attempt.]
+Pendaftaran akun `salahalamat` ke kelas 2 menghasilkan HTTP 201. Task event 28 sempat masuk retry untuk alamat `salah@kampus.invalid`, padahal targetnya langsung diarsipkan. Kesalahan permanen perlu membungkus sentinel `asynq.SkipRetry` dengan `%w` agar Asynq mengenalinya.
 
-[BUKTI C4-01: tempel setelah hasil arsip. Tampilkan nilai antrean sebelum dan sesudah serta log attempt.]
+Setelah perbaikan, akun uji kedua dengan alamat `ulang@kampus.invalid` mendapat HTTP 201. Archived naik dari 4 ke 5 dan retry tetap 0. Log mencatat tepat satu `task_failed` pada attempt 1/6.
 
 ### C.5 Task ganda
 
-[ISI: ID event, jumlah pemrosesan, jumlah yang dilewati, serta jumlah email dan notifikasi.]
+Probe redelivery mengirim ulang satu salinan untuk outbox ID 15. Task masuk retry dengan pesan `claim notifikasi berhasil dibuat`. Cabang untuk claim yang sudah ada perlu selesai dengan sukses sehingga worker mencatat `already_sent=true` dan melewati pengiriman.
 
-[BUKTI C5-01: tempel setelah hasil redelivery. Tampilkan log pemrosesan untuk ID event yang sama dan hitungan pengiriman.]
+Setelah perbaikan, lima salinan dibuat untuk event 30 saat worker berhenti, lalu relay menambah task asli. Log menunjukkan enam pemrosesan, satu `already_sent=false` dan lima `true`. Database dan log email masing-masing mencatat satu pengiriman.
 
 ### C.6 Penghentian worker
 
-[ISI: urutan Ctrl+C, penyelesaian pengiriman, dan penghentian worker.]
+Pendaftaran kelas 9 menghasilkan HTTP 201. Uji otomatis mengirim CTRL_BREAK saat antrean menunjukkan satu task aktif dan mailer memakai jeda lima detik. Worker mencatat `notification_processed` untuk event 37 sebelum keluar dengan kode 0. API menampilkan notifikasi IF307 Sistem Terdistribusi.
 
 ### C.7 Pemeriksaan log
 
-[ISI: hasil pemeriksaan pesan dan field wajib pada log API dan worker.]
+Log worker menunjukkan `relay_done published`, `relay_delayed published/error`, `notification_processed outbox_id/event/retry/already_sent`, dan `task_failed type/attempt/error`. Tidak ada `request_failed` pada log API yang diarsipkan dari pengujian otomatis. Log API interaktif awal tidak diarsipkan secara lengkap.
 
 ### Percobaan pembanding
 
-[ISI: bug yang dikembalikan, hasil uji saat bug aktif, dan hasil uji yang sama setelah perbaikan dipulihkan.]
-
-[BUKTI D3-01: tempel setelah hasil pembanding. Tampilkan keluaran gagal dan lulus pada uji yang sama.]
+Percobaan pembanding memakai dua binary. Binary sementara dibuat dengan Go overlay yang mengembalikan error pada cabang task duplikat. Redelivery event 30 mencatat `task_failed`. Uji yang sama pada binary perbaikan mencatat `notification_processed already_sent=true`. Build, vet, dan test seluruh paket berhasil.
 
 ## D.4 Analisis
 
-1. [ISI: dua skenario ketika mencoba enqueue ulang di handler masih bisa menghilangkan notifikasi atau menunda respons.]
-2. [ISI: dampak Redis kehilangan 100 task pending, cara mendeteksi dari PostgreSQL, dan cara memulihkan tanpa pengiriman ganda.]
-3. [ISI: alasan pemakaian WithTx di service KRS dan WithTxOnce di worker, serta dampak jika ditukar.]
-4. [ISI: kapan urutan email menjadi masalah, satu cara mengatasinya, dan konsekuensinya.]
+1. Proses API dapat berhenti sesudah transaksi KRS berhasil tetapi sebelum antrean menerima task. Jika Redis mati lebih lama daripada tiga percobaan, semua percobaan habis dan respons pengguna tertunda oleh timeout. Outbox menyimpan pekerjaan bersama transaksi KRS agar proses lain bisa mencoba kembali.
+2. Jika Redis kehilangan 100 task pending, outbox dapat tetap berstatus terbit walaupun task tidak akan dijalankan. Bandingkan event lama yang sudah terbit dengan catatan notifikasi per penerima, lalu singkirkan task yang masih aktif dan kegagalan permanen dari daftar pemulihan. Kirim ulang event yang belum lengkap. Claim unik menahan pengiriman ganda untuk penerima yang sudah tercatat.
+3. Helper transaksi yang dapat mengulang transaksi cocok untuk KRS selama isi transaksinya hanya operasi PostgreSQL yang dibatalkan bersama. Worker perlu satu percobaan transaksi karena pengiriman email punya efek di luar database. Mengulang transaksi worker secara otomatis dapat mengirim email dua kali. Dengan satu percobaan, kegagalan KRS yang sebenarnya bisa dicoba kembali akan diteruskan ke pemanggil. Repo ini memakai `pgx.BeginFunc` untuk satu percobaan.
+4. Email pendaftaran dan keluar dapat tiba terbalik ketika worker berjalan paralel atau task pertama mengalami retry. Jika urutan penting, gunakan nomor urut per mahasiswa dan proses satu event per mahasiswa pada satu waktu. Task yang gagal dapat menahan pesan sesudahnya dan memperlambat pengiriman.
 
 ## Kesimpulan
 
-[ISI: rangkum perilaku yang terbukti dari pengujian.]
+Outbox menjaga event KRS saat Redis tidak tersedia. Worker mencoba kembali kegagalan sementara, langsung mengarsipkan alamat invalid, dan mengabaikan task duplikat yang sudah diproses. Perubahan kuota untuk lima peserta menghasilkan satu email per penerima walaupun terjadi retry dan redelivery.
 
 ## Daftar pustaka
 
