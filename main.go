@@ -57,6 +57,7 @@ func main() {
 		Student:  service.StudentService{Repo: studentRepo},
 		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
 		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Secret: secret},
+		Course:   service.CourseService{Repo: repository.CourseRepository{DB: db}},
 		User:     service.UserService{Repo: userRepo},
 		Portfolio: service.PortfolioService{
 			Repo:        portfolioRepo,

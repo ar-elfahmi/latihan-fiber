@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 
@@ -15,7 +17,32 @@ import (
 type AuthService struct {
 	Repo   repository.UserRepository
 	RBAC   repository.RBACRepository // saat ini unused; disimpan untuk kompatibilitas wiring
-	Secret []byte // kunci tanda tangan token, dibaca dari JWT_SECRET di .env
+	Secret []byte                    // kunci tanda tangan token, dibaca dari JWT_SECRET di .env
+}
+
+func (s AuthService) Register(c *fiber.Ctx) error {
+	var req model.RegisterRequest
+	if err := helper.ParseBody(c, &req); err != nil {
+		return helper.BadRequest("body harus berupa JSON yang valid")
+	}
+	if fields := helper.ValidateStruct(req); len(fields) > 0 {
+		return helper.Validation(fields)
+	}
+	if len(req.Password) > 72 {
+		return helper.Validation(map[string]string{"password": "maksimal 72 byte"})
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return helper.Internal(err)
+	}
+	id, err := s.Repo.Register(c.UserContext(), req, string(hash))
+	if errors.Is(err, repository.ErrDuplicate) {
+		return helper.Conflict("username sudah digunakan")
+	}
+	if err != nil {
+		return helper.Internal(err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id, "username": req.Username, "email": req.Email})
 }
 
 // Login memeriksa username + password, lalu memberi token JWT.

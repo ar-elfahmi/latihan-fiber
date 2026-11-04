@@ -26,10 +26,17 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 
 	// Login: terbitkan token JWT (tidak perlu token untuk masuk ke sini).
 	api.Post("/auth/login", s.Auth.Login)
+	api.Post("/auth/register", s.Auth.Register)
 
 	// Semua route yang didaftarkan SETELAH baris ini wajib bawa token.
 	// Modul 6: Protect juga memuat permission live dari RBACRepository.
 	api.Use(middleware.Protect(rbac, jwtSecret))
+
+	api.Get("/courses", s.Course.List)
+	api.Post("/courses/:id/enroll", middleware.RequirePermission("course:enroll"), s.Course.Enroll)
+	api.Delete("/courses/:id/enroll", middleware.RequirePermission("course:enroll"), s.Course.Drop)
+	api.Post("/enrollments/swap", middleware.RequirePermission("course:enroll"), s.Course.Swap)
+	api.Patch("/courses/:id", middleware.RequirePermission("course:manage"), s.Course.UpdateQuota)
 
 	// --- Daftar prestasi (global) ---
 	api.Get("/prestasi",

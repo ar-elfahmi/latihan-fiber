@@ -18,6 +18,21 @@ type UserRepository struct {
 	DB *pgxpool.Pool
 }
 
+func (r UserRepository) Register(ctx context.Context, req model.RegisterRequest, passwordHash string) (int, error) {
+	var id int
+	err := r.DB.QueryRow(ctx, `WITH account AS (
+		INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)
+		ON CONFLICT (username) DO NOTHING RETURNING id
+	)
+	INSERT INTO user_roles (user_id, role_name)
+	SELECT id, 'user' FROM account RETURNING user_id`,
+		req.Username, req.Email, passwordHash).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrDuplicate
+	}
+	return id, err
+}
+
 // GetByUsername mengambil satu akun berdasarkan username.
 // Mengembalikan ErrNotFound bila username tidak terdaftar.
 func (r UserRepository) GetByUsername(ctx context.Context, username string) (model.User, error) {

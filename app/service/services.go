@@ -6,6 +6,7 @@ type Services struct {
 	Student   StudentService
 	Prestasi  PrestasiService
 	Auth      AuthService
+	Course    CourseService
 	User      UserService
 	Portfolio PortfolioService
 }
