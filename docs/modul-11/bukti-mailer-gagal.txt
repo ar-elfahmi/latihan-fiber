@@ -1,0 +1,2 @@
+# latihan-fiber/helper
+helper\mailer.go:34:9: cannot use LogMailer{…} (value of struct type LogMailer) as Mailer value in return statement: LogMailer does not implement Mailer (method Send has pointer receiver)

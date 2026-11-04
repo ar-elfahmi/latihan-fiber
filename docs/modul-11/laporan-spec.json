@@ -1,0 +1,371 @@
+{
+  "cover": {
+    "jenis": "Laporan Praktikum",
+    "judul": "Modul 11 — Background Jobs dan Asynchronous Processing",
+    "mata_kuliah": "Praktikum Pemrograman Backend Lanjut",
+    "dosen": "[ISI: dosen pengampu]",
+    "penyusun": [
+      {
+        "nama": "[ISI: nama]",
+        "nim": "[ISI: NIM]"
+      }
+    ],
+    "kelas": "[ISI: kelas]",
+    "prodi": "D4 Teknik Informatika",
+    "fakultas": "Fakultas Vokasi",
+    "kampus": "Universitas Airlangga",
+    "kota": "Surabaya",
+    "tahun": "2026 [SESUAIKAN]\nRepository: [ISI: tautan repository]"
+  },
+  "isi": [
+    {
+      "type": "bab",
+      "text": "Pendahuluan"
+    },
+    {
+      "type": "h2",
+      "text": "Tujuan"
+    },
+    {
+      "type": "p",
+      "text": "Praktikum ini mempelajari cara memproses notifikasi KRS di belakang layar. API mencatat perubahan KRS dan event ke PostgreSQL dalam satu transaksi. Relay memindahkan event ke antrean Redis. Worker membaca antrean dan menjalankan pengiriman email tiruan (Program Studi D4 Teknik Informatika, t.t.)."
+    },
+    {
+      "type": "h2",
+      "text": "Lingkungan praktikum"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: baseline atau commit, versi Go, PostgreSQL, MongoDB, Redis, dan Asynq. Catat cara menjalankan API dan worker.]"
+    },
+    {
+      "type": "bab",
+      "text": "D.1 Berita Acara Perbaikan"
+    },
+    {
+      "type": "p",
+      "text": "Tabel berikut mencatat sembilan kesalahan bawaan modul. Isi satu baris setelah gejala dan hasil perbaikan terverifikasi. Untuk kesalahan yang lolos compiler, rujuk bukti sebelum dan sesudah pada catatan di bawah tabel."
+    },
+    {
+      "type": "table",
+      "caption": "Ringkasan temuan Modul 11",
+      "header": [
+        "No.",
+        "Lokasi",
+        "Gejala",
+        "Uji",
+        "Akar masalah",
+        "Perbaikan"
+      ],
+      "widths": [
+        0.55,
+        1.05,
+        1,
+        0.85,
+        1.25,
+        1.25
+      ],
+      "rows": [
+        [
+          "1",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "2",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "3",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "4",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "5",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "6",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "7",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "8",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ],
+        [
+          "9",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]",
+          "[ISI]"
+        ]
+      ]
+    },
+    {
+      "type": "h2",
+      "text": "Bukti temuan"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: ulangi blok ini untuk tiap temuan. Cantumkan nomor temuan, kondisi awal, perintah, gejala, perubahan kode, serta hasil uji ulang.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI: tangkapan layar atau cuplikan compiler, respons, kueri, atau log sebelum dan sesudah.]"
+    },
+    {
+      "type": "bab",
+      "text": "D.2 Notifikasi Perubahan Kuota"
+    },
+    {
+      "type": "h2",
+      "text": "Transaksi perubahan kuota"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: jelaskan mengapa perubahan kuota dan penyimpanan event `course.quota_changed` harus tersimpan atau dibatalkan bersama. Sisipkan potongan kode yang menunjukkan batas transaksi.]"
+    },
+    {
+      "type": "h2",
+      "text": "Migration 009 dan strategi pengiriman"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: sisipkan migration 009. Jelaskan kunci idempotensi yang dipilih dan bagaimana worker menghindari pengiriman ulang kepada peserta yang sudah berhasil.]"
+    },
+    {
+      "type": "h2",
+      "text": "Uji kegagalan dan pengiriman ulang"
+    },
+    {
+      "type": "p",
+      "text": "Gunakan kelas dengan minimal lima peserta, `MAILER_FAIL_EVERY=3`, dan alat redelivery. Catat jumlah peserta, jumlah email, kegagalan yang benar-benar terjadi, serta hasil setelah task dikirim ulang."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: hasil aktual dan kesimpulan uji.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI: daftar peserta, log retry, perintah redelivery, dan hitungan pengiriman per penerima.]"
+    },
+    {
+      "type": "bab",
+      "text": "D.3 Bukti Pengujian"
+    },
+    {
+      "type": "p",
+      "text": "Target di bawah mengikuti Bagian C modul. Simpan hasil aktual saat uji berlangsung. Gunakan reset sesuai modul sebelum C.1 dan C.3. Arsipkan bukti sebelum mengosongkan log untuk uji berikutnya. Tutupi token dan kata sandi pada screenshot."
+    },
+    {
+      "type": "h2",
+      "text": "C.1 Jalur normal"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Status berurutan 201, 409, 204, 201, 200. Empat event dan empat notifikasi dengan jenis, subjek, serta urutan sesuai modul. Empat email simulasi."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] Response API, kueri outbox, daftar notifikasi, dan hitungan log email."
+    },
+    {
+      "type": "h2",
+      "text": "C.2 Redis berhenti dan pulih"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Lanjutkan data C.1. Saat Redis mati, tiga pendaftaran tetap 201. `outbox_pending` bernilai 3 dan `queue_error` muncul. Setelah pulih, pending menjadi 0 dan total notifikasi menjadi 7."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] Status dan durasi tiga request, monitoring saat Redis mati, monitoring dan notifikasi setelah pulih."
+    },
+    {
+      "type": "h2",
+      "text": "C.3 Gagal sementara"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Reset sesuai modul. Jalankan worker dengan `MAILER_FAIL_EVERY=3`. Enam pendaftaran berhasil. Hitungan database, API, dan email masing-masing 6. Minimal dua log `task_failed` menunjukkan kegagalan sementara."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] Konfigurasi simulasi, log kegagalan, serta tiga hitungan."
+    },
+    {
+      "type": "h2",
+      "text": "C.4 Gagal permanen"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Gunakan akun `salahalamat`. Pendaftaran tetap 201, `archived` naik satu, `retry` bernilai 0, dan hanya satu kegagalan tercatat dengan attempt 1/6."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] Response, nilai antrean sebelum dan sesudah, serta log attempt."
+    },
+    {
+      "type": "h2",
+      "text": "C.5 Task ganda"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Saat worker berhenti, catat satu event tertahan. Kirim lima salinan lewat `redeliver`. Setelah worker menyala, relay menambah satu task. Enam pemrosesan menghasilkan satu notifikasi dan satu email. Lima log menunjukkan `already_sent: true`."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] ID event, perintah redelivery, enam log, dan hitungan email serta notifikasi."
+    },
+    {
+      "type": "h2",
+      "text": "C.6 Penghentian worker"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Atur `MAILER_DELAY_MS=5000`. Tekan Ctrl+C ketika pengiriman sedang berjalan. Worker menyelesaikan pengiriman sebelum berhenti dan notifikasi tetap tercatat."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] Urutan log dan bukti notifikasi."
+    },
+    {
+      "type": "h2",
+      "text": "C.7 Pemeriksaan log"
+    },
+    {
+      "type": "p",
+      "text": "Target uji. Periksa `relay_done`, `relay_delayed`, `notification_processed`, dan `task_failed` beserta field wajibnya. Periksa ketentuan `request_failed` sepanjang C.1–C.6."
+    },
+    {
+      "type": "p",
+      "text": "[ISI: langkah yang dijalankan, hasil aktual, dan status lulus atau gagal.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI] Potongan log yang relevan dan hasil pemeriksaan field."
+    },
+    {
+      "type": "h2",
+      "text": "Percobaan pembanding"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: pilih satu kesalahan yang lolos compiler. Catat uji dan hasil setelah kesalahan dikembalikan sementara. Pulihkan perbaikan dan jalankan ulang uji yang sama.]"
+    },
+    {
+      "type": "p",
+      "text": "[SISIPKAN BUKTI: hasil gagal dan hasil lulus pada uji yang sama.]"
+    },
+    {
+      "type": "bab",
+      "text": "D.4 Analisis"
+    },
+    {
+      "type": "h2",
+      "text": "Retry setelah commit"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: Jelaskan dua skenario saat tiga kali enqueue ulang di handler masih dapat menghilangkan notifikasi atau menunda respons.]"
+    },
+    {
+      "type": "h2",
+      "text": "Redis kehilangan task pending"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: Jelaskan nasib 100 task yang sudah ditandai terbit. Uraikan cara mendeteksi dan memulihkannya dari data PostgreSQL dengan menjaga idempotensi.]"
+    },
+    {
+      "type": "h2",
+      "text": "Perbedaan WithTx dan WithTxOnce"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: Jelaskan alasan pemilihan helper transaksi di service KRS dan worker, serta akibat jika keduanya ditukar.]"
+    },
+    {
+      "type": "h2",
+      "text": "Urutan email"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: Jelaskan kapan urutan email menjadi masalah, satu cara mengatasinya, dan konsekuensinya.]"
+    },
+    {
+      "type": "bab",
+      "text": "Kesimpulan"
+    },
+    {
+      "type": "p",
+      "text": "[ISI: rangkum hasil yang terverifikasi, termasuk saat Redis berhenti, pengiriman gagal, dan task diproses ulang.]"
+    }
+  ],
+  "daftar_pustaka": [
+    "Program Studi D4 Teknik Informatika. (t.t.). *Pertemuan 11 — Background Jobs & Asynchronous Processing* [Modul praktikum]. Fakultas Vokasi, Universitas Airlangga."
+  ]
+}

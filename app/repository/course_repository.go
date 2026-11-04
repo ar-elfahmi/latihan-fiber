@@ -51,11 +51,20 @@ func (r CourseRepository) List(ctx context.Context) ([]model.Course, error) {
 
 func (r CourseRepository) Enroll(ctx context.Context, userID, courseID int) (model.Course, error) {
 	var course model.Course
+	outbox := OutboxRepository{DB: r.DB}
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, courseID, courseID); err != nil {
 			return err
 		}
-		var err error
+		class, err := scanCourse(tx.QueryRow(ctx, "SELECT "+courseColumns+" FROM courses WHERE id = $1", courseID))
+		if err != nil {
+			return err
+		}
+		if err := outbox.WithTx(tx).Insert(ctx, model.EventEnrollmentCreated, model.EnrollmentEvent{
+			UserID: userID, CourseID: class.ID, CourseCode: class.Code, CourseName: class.Name,
+		}); err != nil {
+			return err
+		}
 		course, err = enroll(ctx, tx, userID, courseID)
 		return err
 	})
@@ -67,7 +76,16 @@ func (r CourseRepository) Drop(ctx context.Context, userID, courseID int) error 
 		if err := lockKRS(ctx, tx, userID, courseID, courseID); err != nil {
 			return err
 		}
-		return drop(ctx, tx, userID, courseID)
+		if err := drop(ctx, tx, userID, courseID); err != nil {
+			return err
+		}
+		class, err := scanCourse(tx.QueryRow(ctx, "SELECT "+courseColumns+" FROM courses WHERE id = $1", courseID))
+		if err != nil {
+			return err
+		}
+		return (OutboxRepository{DB: r.DB}).WithTx(tx).Insert(ctx, model.EventEnrollmentDropped, model.EnrollmentEvent{
+			UserID: userID, CourseID: class.ID, CourseCode: class.Code, CourseName: class.Name,
+		})
 	})
 }
 
@@ -80,9 +98,20 @@ func (r CourseRepository) Swap(ctx context.Context, userID, fromID, toID int) (m
 		if err := drop(ctx, tx, userID, fromID); err != nil {
 			return err
 		}
-		var err error
+		from, err := scanCourse(tx.QueryRow(ctx, "SELECT "+courseColumns+" FROM courses WHERE id = $1", fromID))
+		if err != nil {
+			return err
+		}
 		course, err = enroll(ctx, tx, userID, toID)
-		return err
+		if err != nil {
+			return err
+		}
+		outbox := OutboxRepository{DB: r.DB}
+		event := model.EnrollmentEvent{
+			UserID: userID, CourseID: course.ID, CourseCode: course.Code, CourseName: course.Name,
+			FromCourseCode: from.Code, FromCourseName: from.Name,
+		}
+		return outbox.WithTx(tx).Insert(ctx, model.EventEnrollmentSwapped, event)
 	})
 	return course, err
 }
