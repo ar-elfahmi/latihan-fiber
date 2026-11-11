@@ -403,6 +403,59 @@ paths:
       summary: Login dan terbitkan token JWT
       tags:
       - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Mencabut refresh token milik pengguna yang sedang login. Access token
+        tetap stateless dan berlaku sampai kedaluwarsa.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.WebResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Keluar dan cabut refresh token
+      tags:
+      - Auth
+  /auth/me:
+    get:
+      description: Mengambil profil user yang sedang login.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.WebResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Profil user yang sedang login
+      tags:
+      - Auth
   /auth/refresh:
     post:
       consumes:
@@ -914,6 +967,73 @@ paths:
       summary: Detail satu ulasan
       tags:
       - Reviews
+  /users:
+    get:
+      description: |-
+        Menampilkan daftar user dengan cursor pagination. Format JSON secara
+        default; CSV bila header Accept meminta.
+      parameters:
+      - description: Jumlah data per halaman (maks 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Kursor halaman berikutnya
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.WebResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Daftar user
+      tags:
+      - Users
+  /users/{id}:
+    get:
+      description: Mengambil detail user berdasarkan ID.
+      parameters:
+      - description: ID user
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.WebResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Detail satu user
+      tags:
+      - Users
 securityDefinitions:
   BearerAuth:
     description: 'Token JWT hasil login: Bearer <token>'

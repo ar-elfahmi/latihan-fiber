@@ -32,6 +32,18 @@ var userCSVHeaders = []string{"id", "username", "email", "is_active", "created_a
 //  3. Query repo (List atau FindAfterCursor).
 //  4. Potong limit+1, isi meta.
 //  5. Render sesuai format yang diminta.
+// @Summary		Daftar user
+// @Description	Menampilkan daftar user dengan cursor pagination. Format JSON secara
+// @Description	default; CSV bila header Accept meminta.
+// @Tags			Users
+// @Produce		json
+// @Param			limit	query		int	false	"Jumlah data per halaman (maks 50)"
+// @Param			cursor	query		string	false	"Kursor halaman berikutnya"
+// @Success		200	{object}	model.WebResponse
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Failure		403	{object}	model.ErrorResponse
+// @Router			/users [get]
 func (s UserService) List(c *fiber.Ctx) error {
 	if err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV); err != nil {
 		return err
@@ -95,6 +107,16 @@ func (s UserService) List(c *fiber.Ctx) error {
 }
 
 // GetByID mengambil detail satu user (GET /users/:id, permission user:read).
+// @Summary		Detail satu user
+// @Description	Mengambil detail user berdasarkan ID.
+// @Tags			Users
+// @Produce		json
+// @Param			id	path		int	true	"ID user"
+// @Success		200	{object}	model.WebResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Failure		403	{object}	model.ErrorResponse
+// @Failure		404	{object}	model.ErrorResponse
+// @Router			/users/{id} [get]
 func (s UserService) GetByID(c *fiber.Ctx) error {
 	id, err := userID(c)
 	if err != nil {
