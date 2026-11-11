@@ -75,3 +75,14 @@ type ListUserQuery struct {
 func (q ListUserQuery) Offset() int {
 	return (q.Page - 1) * q.Limit
 }
+// TokenPair adalah pasangan token yang diterbitkan saat login dan refresh.
+// Bentuk login tetap non-breaking: {token, refresh_token, user} (S-004 Q1).
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RefreshRequest adalah body POST /auth/refresh dan POST /auth/logout.
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
