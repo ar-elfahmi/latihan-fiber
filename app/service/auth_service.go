@@ -181,6 +181,18 @@ func (s AuthService) Refresh(c *fiber.Ctx) error {
 
 // Logout mencabut refresh token. Access token tetap stateless: tetap valid
 // sampai kedaluwarsa (didokumentasikan, S-004 Q2).
+// @Summary		Keluar dan cabut refresh token
+// @Description	Mencabut refresh token milik pengguna yang sedang login. Access token
+// @Description	tetap stateless dan berlaku sampai kedaluwarsa.
+// @Tags			Auth
+// @Accept			json
+// @Produce		json
+// @Param			request	body		model.RefreshRequest	true	"Refresh token"
+// @Success		200	{object}	model.WebResponse
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Failure		422	{object}	model.ErrorResponse
+// @Router			/auth/logout [post]
 func (s AuthService) Logout(c *fiber.Ctx) error {
 	var req model.RefreshRequest
 	if err := helper.ParseBody(c, &req); err != nil {
@@ -200,6 +212,13 @@ func (s AuthService) Logout(c *fiber.Ctx) error {
 
 // Me mengembalikan profil user yang sedang login (tanpa password_hash —
 // model.User menandai field itu json:"-").
+// @Summary		Profil user yang sedang login
+// @Description	Mengambil profil user yang sedang login.
+// @Tags			Auth
+// @Produce		json
+// @Success		200	{object}	model.WebResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Router			/auth/me [get]
 func (s AuthService) Me(c *fiber.Ctx) error {
 	u, err := s.Repo.FindByID(c.UserContext(), CurrentUserID(c))
 	if err != nil {
