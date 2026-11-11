@@ -32,6 +32,8 @@ func TestWithinCreditLimit(t *testing.T) {
 		{name: "nol SKS + 24 SKS lolos", current: 0, delta: 24, want: true},
 		{name: "tepat di batas: 24 + 0 lolos", current: 24, delta: 0, want: true},
 		{name: "tepat di batas: 21 + 3 lolos", current: 21, delta: 3, want: true},
+		{name: "tepat di batas: 12 + 12 = 24 SKS lolos", current: 12, delta: 12, want: true},
+		{name: "tepat di batas: 18 + 6 = 24 SKS lolos", current: 18, delta: 6, want: true},
 		{name: "satu di atas batas ditolak", current: 24, delta: 1, want: false},
 		{name: "melebihi batas ditolak", current: 24, delta: 3, want: false},
 		{name: "nol SKS + 25 SKS ditolak", current: 0, delta: 25, want: false},
