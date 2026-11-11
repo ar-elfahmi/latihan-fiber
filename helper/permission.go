@@ -40,6 +40,8 @@ type PermissionActions struct {
 	StudentUpdate  []string
 	StudentDelete  []string
 	UserList       []string
+	UserRead       []string
+	ReviewModerate []string
 }
 
 // NewPermissionSet menyusun katalog permission per aksi.
@@ -61,5 +63,7 @@ func NewPermissionSet() PermissionActions {
 		StudentUpdate:  []string{"student:update:any", "student:update:self"},
 		StudentDelete:  []string{"student:delete"},
 		UserList:       []string{"user:list"},
+		UserRead:       []string{"user:read"},
+		ReviewModerate: []string{"review:moderate"},
 	}
 }
