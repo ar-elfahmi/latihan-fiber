@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"latihan-fiber/app/domain"
 	"latihan-fiber/app/model"
 )
 
@@ -14,8 +16,10 @@ var (
 	ErrCourseFull      = errors.New("kuota kelas penuh")
 	ErrAlreadyEnrolled = errors.New("sudah terdaftar di kelas ini")
 	ErrNotEnrolled     = errors.New("belum terdaftar di kelas ini")
-	ErrCreditLimit     = errors.New("batas 24 SKS terlampaui")
-	ErrQuotaConflict   = errors.New("versi kelas berubah atau kuota di bawah jumlah peserta")
+	// Pesan batas SKS disusun dari konstanta tunggal supaya angka 24 tidak
+	// ditulis dua kali; teksnya tetap "batas 24 SKS terlampaui".
+	ErrCreditLimit   = errors.New(fmt.Sprintf("batas %d SKS terlampaui", domain.MaxCreditsPerSemester))
+	ErrQuotaConflict = errors.New("versi kelas berubah atau kuota di bawah jumlah peserta")
 )
 
 const courseColumns = "id, code, name, credits, quota, enrolled_count, version, created_at"
@@ -65,7 +69,19 @@ func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID i
 		}); err != nil {
 			return err
 		}
-		course, err = enroll(ctx, tx, userID, courseID)
+		if err := insertEnrollment(ctx, tx, userID, courseID); err != nil {
+			return err
+		}
+		// Batas SKS diperiksa di dalam transaksi: total SKS setelah diambil
+		// kelas ini harus tetap di dalam batas.
+		total, err := totalCredits(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		if !domain.WithinCreditLimit(total-class.Credits, class.Credits) {
+			return ErrCreditLimit
+		}
+		course, err = bumpEnrolledCount(ctx, tx, courseID)
 		return err
 	})
 	return course, err
@@ -95,6 +111,11 @@ func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID
 		if err := lockKRS(ctx, tx, userID, fromID, toID); err != nil {
 			return err
 		}
+		// Total SKS sebelum tukar; dipakai menghitung SKS setelah tukar.
+		totalBefore, err := totalCredits(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
 		if err := drop(ctx, tx, userID, fromID); err != nil {
 			return err
 		}
@@ -102,7 +123,29 @@ func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID
 		if err != nil {
 			return err
 		}
-		course, err = enroll(ctx, tx, userID, toID)
+		// Kelas tujuan dibaca lebih dulu untuk menghitung SKS setelah tukar.
+		// Kalau kelas tujuan tidak ada, insert di bawah yang menolak (perilaku
+		// lama: error foreign key) sehingga respons tidak berubah.
+		to, toFound := model.Course{}, false
+		scanned, err := scanCourse(tx.QueryRow(ctx, "SELECT "+courseColumns+" FROM courses WHERE id = $1", toID))
+		if err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+		} else {
+			to, toFound = scanned, true
+		}
+		if err := insertEnrollment(ctx, tx, userID, toID); err != nil {
+			return err
+		}
+		if toFound {
+			// SKS setelah tukar = SKS lama - SKS kelas asal + SKS kelas tujuan.
+			afterSwap := domain.CreditsAfterSwap(totalBefore, from, to)
+			if afterSwap > domain.MaxCreditsPerSemester {
+				return ErrCreditLimit
+			}
+		}
+		course, err = bumpEnrolledCount(ctx, tx, toID)
 		if err != nil {
 			return err
 		}
@@ -132,25 +175,31 @@ func lockKRS(ctx context.Context, tx pgx.Tx, userID, firstID, secondID int) erro
 	return nil
 }
 
-func enroll(ctx context.Context, tx pgx.Tx, userID, courseID int) (model.Course, error) {
+// insertEnrollment menulis baris enrollment mahasiswa pada sebuah kelas.
+// ErrAlreadyEnrolled kalau mahasiswa sudah terdaftar di kelas itu.
+func insertEnrollment(ctx context.Context, tx pgx.Tx, userID, courseID int) error {
 	inserted, err := tx.Exec(ctx, `INSERT INTO enrollments (user_id, course_id)
 		VALUES ($1, $2) ON CONFLICT (course_id, user_id) DO NOTHING`, userID, courseID)
 	if err != nil {
-		return model.Course{}, err
+		return err
 	}
 	if inserted.RowsAffected() == 0 {
-		return model.Course{}, ErrAlreadyEnrolled
+		return ErrAlreadyEnrolled
 	}
+	return nil
+}
 
-	var credits int
-	err = tx.QueryRow(ctx, `SELECT COALESCE(SUM(c.credits), 0) FROM enrollments e
-		JOIN courses c ON c.id = e.course_id WHERE e.user_id = $1`, userID).Scan(&credits)
-	if err != nil {
-		return model.Course{}, err
-	}
-	if credits > 24 {
-		return model.Course{}, ErrCreditLimit
-	}
+// totalCredits menjumlahkan SKS seluruh kelas yang sedang diambil mahasiswa.
+func totalCredits(ctx context.Context, tx pgx.Tx, userID int) (int, error) {
+	var total int
+	err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(c.credits), 0) FROM enrollments e
+		JOIN courses c ON c.id = e.course_id WHERE e.user_id = $1`, userID).Scan(&total)
+	return total, err
+}
+
+// bumpEnrolledCount menambah jumlah peserta kelas. ErrCourseFull kalau
+// kuota sudah habis.
+func bumpEnrolledCount(ctx context.Context, tx pgx.Tx, courseID int) (model.Course, error) {
 	course, err := scanCourse(tx.QueryRow(ctx, `UPDATE courses SET enrolled_count = enrolled_count + 1
 		WHERE id = $1 AND enrolled_count < quota RETURNING `+courseColumns, courseID))
 	if errors.Is(err, pgx.ErrNoRows) {
