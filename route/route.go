@@ -14,15 +14,28 @@ import (
 	"latihan-fiber/middleware"
 )
 
+// Dependencies adalah kumpulan dependency yang dibutuhkan route.
+// Dipasang satu struct supaya main.go tidak perlu mengingat urutan
+// parameter dan supaya slice berikutnya (repository jadi interface)
+// bisa menukar implementasi tanpa mengubah handler.
+type Dependencies struct {
+	Services    service.Services
+	RBAC        repository.RBACRepository
+	JWTSecret   []byte
+	Pool        *pgxpool.Pool
+	MongoClient *mongo.Client
+}
+
 // Setup mendaftarkan seluruh endpoint aplikasi.
 // Tiap endpoint satu baris; aturan/bisnis ada di service.
 // Modul 6: protect + permission dipasang per method agar authorization
 // tidak bergantung pada isi data (pemilikan dicek service).
-func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, jwtSecret []byte, pool *pgxpool.Pool, mongoClient *mongo.Client) {
+func Setup(app *fiber.App, deps Dependencies) {
+	s := deps.Services
 	api := app.Group("/api/v1")
 
 	// Health check
-	api.Get("/health", healthCheck(pool, mongoClient))
+	api.Get("/health", healthCheck(deps.Pool, deps.MongoClient))
 
 	// Login: terbitkan token JWT (tidak perlu token untuk masuk ke sini).
 	api.Post("/auth/login", s.Auth.Login)
@@ -30,7 +43,7 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 
 	// Semua route yang didaftarkan SETELAH baris ini wajib bawa token.
 	// Modul 6: Protect juga memuat permission live dari RBACRepository.
-	api.Use(middleware.Protect(rbac, jwtSecret))
+	api.Use(middleware.Protect(deps.RBAC, deps.JWTSecret))
 
 	api.Get("/courses", s.Course.List)
 	api.Post("/courses/:id/enroll", middleware.RequirePermission("course:enroll"), s.Course.Enroll)

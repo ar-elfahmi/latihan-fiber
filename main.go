@@ -22,8 +22,10 @@ import (
 )
 
 func main() {
-	// 0. Baca file .env ke environment variable.
+	// 0. Baca file .env ke environment variable, lalu susun satu
+	//    konfigurasi aplikasi (config.NewApp) yang dipakai semua lapisan.
 	config.LoadEnv()
+	appCfg := config.NewApp()
 
 	role := flag.String("role", config.GetWithDefault("APP_ROLE", "api"), "api | worker | all")
 	flag.Parse()
@@ -35,7 +37,7 @@ func main() {
 	defer stop()
 
 	// 1. Buka koneksi database. Fatal bila gagal.
-	db, err := database.Connect(ctx)
+	db, err := database.ConnectWithDSN(ctx, appCfg.DatabaseDSN)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,7 +53,7 @@ func main() {
 		return
 	}
 
-	mongoClient, err := database.NewMongoClient(context.Background())
+	mongoClient, err := database.NewMongoClient(ctx, appCfg.MongoURI)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,7 +63,7 @@ func main() {
 		_ = mongoClient.Disconnect(ctx)
 	}()
 
-	mongoDB := mongoClient.Database(config.GetWithDefault("MONGO_DATABASE", "praktikum_backend"))
+	mongoDB := mongoClient.Database(appCfg.MongoDatabase)
 
 	portfolioRepo := repository.NewPortfolioRepository(mongoDB)
 	if err := portfolioRepo.EnsureIndexes(context.Background()); err != nil {
@@ -73,8 +75,8 @@ func main() {
 	userRepo := repository.UserRepository{DB: db}
 	rbacRepo := repository.RBACRepository{DB: db}
 
-	secret := []byte(config.GetWithDefault("JWT_SECRET", "rahasia-latihan"))
-	inspector := asynq.NewInspector(config.RedisOpt())
+	secret := appCfg.JWTSecret
+	inspector := asynq.NewInspector(appCfg.Redis)
 	defer func() {
 		if err := inspector.Close(); err != nil {
 			log.Printf("menutup inspector antrean: %v", err)
@@ -102,14 +104,20 @@ func main() {
 	app := fiber.New(fiber.Config{ErrorHandler: config.ErrorHandler})
 	app.Use(middleware.Logger)
 	// Protect butuh rbacRepo untuk fetch permission live (Modul 6).
-	route.Setup(app, svc, rbacRepo, secret, db, mongoClient)
+	route.Setup(app, route.Dependencies{
+		Services:    svc,
+		RBAC:        rbacRepo,
+		JWTSecret:   secret,
+		Pool:        db,
+		MongoClient: mongoClient,
+	})
 	// 4. Penampung 404 (URL tidak dikenal). Dikembalikan sebagai
 	// *AppError agar ErrorHandler membentuk JSON seragam.
 	app.Use(func(c *fiber.Ctx) error {
 		return helper.NotFound("endpoint")
 	})
 
-	port := config.GetWithDefault("APP_PORT", "3000")
+	port := appCfg.Port
 	if *role == "all" {
 		shutdown, err := startWorker(ctx, db)
 		if err != nil {
