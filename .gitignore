@@ -8,7 +8,21 @@ latihan-fiber.exe
 latihan-fiber.sql
 run-tests.ps1
 run-tests.sh
+# --- Alur kerja lokal, tidak di-version-control (docs/DECISIONS.md D-005) ---
+GUIDELINE.md
 AGENTS.md
+docs/ROADMAP.md
+docs/STATUS.md
+docs/HANDOFFS.md
+docs/DECISIONS.md
+docs/TESTING.md
+docs/ARCHITECTURE.md
+docs/API.md
+docs/DATABASE.md
+docs/EVIDENCE.md
+docs/BACKLOG.md
+docs/evidence/
+docs/screenshots/
 plan pengerjaan.md
 WORK.md
 archive
