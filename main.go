@@ -69,6 +69,10 @@ func main() {
 	if err := portfolioRepo.EnsureIndexes(context.Background()); err != nil {
 		log.Fatal(err)
 	}
+	reviewRepo := repository.NewReviewRepository(mongoDB)
+	if err := reviewRepo.EnsureIndexes(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 
 	studentRepo := repository.PostgresStudentRepository{DB: db}
 	prestasiRepo := repository.PostgresPrestasiRepository{DB: db}
@@ -104,6 +108,7 @@ func main() {
 			Repo:        portfolioRepo,
 			StudentRepo: studentRepo,
 		},
+		Review: service.NewReviewService(reviewRepo, courseRepo),
 		Notification: service.NotificationService{
 			Notifications: repository.PostgresNotificationRepository{DB: db},
 			Outbox:        repository.PostgresOutboxRepository{DB: db},
