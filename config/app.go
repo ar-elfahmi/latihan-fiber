@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	"latihan-fiber/app/model"
 	"latihan-fiber/helper"
 )
 
@@ -37,14 +38,12 @@ func ErrorHandler(c *fiber.Ctx, err error) error {
 
 	// 1. AppError -> langsung pakai field-nya.
 	if ae := helper.AsAppError(err); ae != nil {
-		body := fiber.Map{
-			"success":    false,
-			"code":       ae.Code,
-			"message":    ae.Message,
-			"request_id": requestID,
-		}
-		if len(ae.Fields) > 0 {
-			body["fields"] = ae.Fields
+		body := model.ErrorResponse{
+			Success:   false,
+			Code:      ae.Code,
+			Message:   ae.Message,
+			Fields:    ae.Fields,
+			RequestID: requestID,
 		}
 		if ae.Cause() != nil {
 			log.Printf("ERROR [req=%s] %s: %v", requestID, ae.Code, ae.Cause())
@@ -55,21 +54,21 @@ func ErrorHandler(c *fiber.Ctx, err error) error {
 	// 2. Fiber error -> terjemahkan status ke kode AppError.
 	var fe *fiber.Error
 	if errors.As(err, &fe) {
-		return c.Status(fe.Code).JSON(fiber.Map{
-			"success":    false,
-			"code":       fiberCodeToAppCode(fe.Code),
-			"message":    fe.Message,
-			"request_id": requestID,
+		return c.Status(fe.Code).JSON(model.ErrorResponse{
+			Success:   false,
+			Code:      fiberCodeToAppCode(fe.Code),
+			Message:   fe.Message,
+			RequestID: requestID,
 		})
 	}
 
 	// 3. Default: fail closed. Error tak dikenal dibungkus sebagai 500.
 	log.Printf("ERROR [req=%s] unhandled: %v", requestID, err)
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-		"success":    false,
-		"code":       helper.CodeInternal,
-		"message":    "internal server error",
-		"request_id": requestID,
+	return c.Status(fiber.StatusInternalServerError).JSON(model.ErrorResponse{
+		Success:   false,
+		Code:      helper.CodeInternal,
+		Message:   "internal server error",
+		RequestID: requestID,
 	})
 }
 

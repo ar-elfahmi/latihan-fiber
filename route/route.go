@@ -14,15 +14,32 @@ import (
 	"latihan-fiber/middleware"
 )
 
+// Dependencies adalah kumpulan dependency yang dibutuhkan route.
+// Dipasang satu struct supaya main.go tidak perlu mengingat urutan
+// parameter dan supaya slice berikutnya (repository jadi interface)
+// bisa menukar implementasi tanpa mengubah handler.
+type Dependencies struct {
+	Services    service.Services
+	RBAC        repository.RBACRepository
+	JWTSecret   []byte
+	Pool        *pgxpool.Pool
+	MongoClient *mongo.Client
+}
+
 // Setup mendaftarkan seluruh endpoint aplikasi.
 // Tiap endpoint satu baris; aturan/bisnis ada di service.
 // Modul 6: protect + permission dipasang per method agar authorization
 // tidak bergantung pada isi data (pemilikan dicek service).
-func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, jwtSecret []byte, pool *pgxpool.Pool, mongoClient *mongo.Client) {
+func Setup(app *fiber.App, deps Dependencies) {
+	s := deps.Services
 	api := app.Group("/api/v1")
 
+	// Katalog permission per aksi (helper.NewPermissionSet). Nama
+	// permission tidak ditulis inline supaya satu sumber kebenaran.
+	perms := helper.NewPermissionSet()
+
 	// Health check
-	api.Get("/health", healthCheck(pool, mongoClient))
+	api.Get("/health", healthCheck(deps.Pool, deps.MongoClient))
 
 	// Login: terbitkan token JWT (tidak perlu token untuk masuk ke sini).
 	api.Post("/auth/login", s.Auth.Login)
@@ -30,54 +47,53 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 
 	// Semua route yang didaftarkan SETELAH baris ini wajib bawa token.
 	// Modul 6: Protect juga memuat permission live dari RBACRepository.
-	api.Use(middleware.Protect(rbac, jwtSecret))
+	api.Use(middleware.Protect(deps.RBAC, deps.JWTSecret))
 
 	api.Get("/courses", s.Course.List)
-	api.Post("/courses/:id/enroll", middleware.RequirePermission("course:enroll"), s.Course.Enroll)
-	api.Delete("/courses/:id/enroll", middleware.RequirePermission("course:enroll"), s.Course.Drop)
-	api.Post("/enrollments/swap", middleware.RequirePermission("course:enroll"), s.Course.Swap)
-	api.Patch("/courses/:id", middleware.RequirePermission("course:manage"), s.Course.UpdateQuota)
+	api.Post("/courses/:id/enroll", middleware.RequirePermission(perms.CourseEnroll...), s.Course.Enroll)
+	api.Delete("/courses/:id/enroll", middleware.RequirePermission(perms.CourseEnroll...), s.Course.Drop)
+	api.Post("/enrollments/swap", middleware.RequirePermission(perms.CourseEnroll...), s.Course.Swap)
+	api.Patch("/courses/:id", middleware.RequirePermission(perms.CourseManage...), s.Course.UpdateQuota)
 
 	api.Get("/notifications/mine", s.Notification.Mine)
-	api.Get("/admin/queue", middleware.RequirePermission("queue:monitor"), s.Notification.Monitor)
+	api.Get("/admin/queue", middleware.RequirePermission(perms.QueueMonitor...), s.Notification.Monitor)
 
 	// --- Daftar prestasi (global) ---
 	api.Get("/prestasi",
-		middleware.RequirePermission("prestasi:list"),
-		s.Prestasi.List,
+		middleware.RequirePermission(perms.PrestasiList...),
 	)
 
 	// --- Mahasiswa ---
 	st := api.Group("/students")
-	st.Get("/", middleware.RequirePermission("student:list"), s.Student.List)
+	st.Get("/", middleware.RequirePermission(perms.StudentList...), s.Student.List)
 	st.Get("/:id",
-		middleware.RequirePermission("student:read:any", "student:read:self"),
+		middleware.RequirePermission(perms.StudentRead...),
 		s.Student.Get,
 	)
-	st.Post("/", middleware.RequirePermission("student:create"), s.Student.Create)
+	st.Post("/", middleware.RequirePermission(perms.StudentCreate...), s.Student.Create)
 	st.Put("/:id",
-		middleware.RequirePermission("student:update:any", "student:update:self"),
+		middleware.RequirePermission(perms.StudentUpdate...),
 		s.Student.Replace,
 	)
 	st.Patch("/:id",
-		middleware.RequirePermission("student:update:any", "student:update:self"),
+		middleware.RequirePermission(perms.StudentUpdate...),
 		s.Student.Patch,
 	)
-	st.Delete("/:id", middleware.RequirePermission("student:delete"), s.Student.Delete)
+	st.Delete("/:id", middleware.RequirePermission(perms.StudentDelete...), s.Student.Delete)
 
 	// --- Prestasi (nested di bawah mahasiswa) ---
 	st.Get("/:id/prestasi",
-		middleware.RequirePermission("prestasi:read:any", "prestasi:read:self"),
+		middleware.RequirePermission(perms.PrestasiRead...),
 		s.Prestasi.GetByStudent,
 	)
 	st.Post("/:id/prestasi",
-		middleware.RequirePermission("prestasi:create"),
+		middleware.RequirePermission(perms.PrestasiCreate...),
 		s.Prestasi.Create,
 	)
 
 	// --- User management (Modul 7) ---
 	api.Get("/users",
-		middleware.RequirePermission("user:list"),
+		middleware.RequirePermission(perms.UserList...),
 		s.User.List,
 	)
 
@@ -85,25 +101,25 @@ func Setup(app *fiber.App, s service.Services, rbac repository.RBACRepository, j
 	// Permission memakai permission mahasiswa yang sudah ada; kepemilikan
 	// dicek lagi di service (student:read:self / student:update:self).
 	st.Get("/:id/portfolio",
-		middleware.RequirePermission("student:read:any", "student:read:self"),
+		middleware.RequirePermission(perms.StudentRead...),
 		s.Portfolio.Get,
 	)
 	st.Put("/:id/portfolio",
-		middleware.RequirePermission("student:update:any", "student:update:self"),
+		middleware.RequirePermission(perms.StudentUpdate...),
 		s.Portfolio.Upsert,
 	)
 	st.Post("/:id/portfolio/projects",
-		middleware.RequirePermission("student:update:any", "student:update:self"),
+		middleware.RequirePermission(perms.StudentUpdate...),
 		s.Portfolio.AddProject,
 	)
 	st.Delete("/:id/portfolio/projects/:projectId",
-		middleware.RequirePermission("student:update:any", "student:update:self"),
+		middleware.RequirePermission(perms.StudentUpdate...),
 		s.Portfolio.DeleteProject,
 	)
 
 	// --- Stats teknologi (publik setelah login) ---
 	api.Get("/portfolios/stats/technologies",
-		middleware.RequirePermission("student:read:any", "student:read:self"),
+		middleware.RequirePermission(perms.StudentRead...),
 		s.Portfolio.StatsTechnologies,
 	)
 }
