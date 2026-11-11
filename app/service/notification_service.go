@@ -17,6 +17,16 @@ type NotificationService struct {
 	Inspector     *asynq.Inspector
 }
 
+// Mine mengembalikan notifikasi milik user yang sedang login.
+//
+// @Summary		Daftar notifikasi saya
+// @Description	Mengembalikan notifikasi milik user yang sedang login (20 terbaru).
+// @Tags			Notifications
+// @Produce		json
+// @Success		200	{array}		model.Notification
+// @Failure		401	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/notifications/mine [get]
 func (s NotificationService) Mine(c *fiber.Ctx) error {
 	userID := CurrentUserID(c)
 	if userID == 0 {
@@ -29,6 +39,16 @@ func (s NotificationService) Mine(c *fiber.Ctx) error {
 	return c.JSON(list)
 }
 
+// Monitor mengembalikan statistik antrean (outbox + Redis).
+//
+// @Summary		Statistik antrean
+// @Description	Mengembalikan statistik outbox (pending/published), jumlah notifikasi terkirim, dan info antrean Redis.
+// @Tags			Notifications
+// @Produce		json
+// @Success		200	{object}	model.QueueStats
+// @Failure		403	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/admin/queue [get]
 func (s NotificationService) Monitor(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	pending, published, oldest, err := s.Outbox.Stats(ctx)

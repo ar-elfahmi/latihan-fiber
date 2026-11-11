@@ -1,0 +1,923 @@
+basePath: /api/v1
+definitions:
+  model.Course:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      credits:
+        type: integer
+      enrolled_count:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      quota:
+        type: integer
+      version:
+        type: integer
+    type: object
+  model.CourseResponse:
+    properties:
+      data:
+        $ref: '#/definitions/model.Course'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  model.CreateReviewRequest:
+    properties:
+      comment:
+        maxLength: 1000
+        minLength: 10
+        type: string
+      rating:
+        maximum: 5
+        minimum: 1
+        type: integer
+      tags:
+        items:
+          type: string
+        maxItems: 10
+        type: array
+    required:
+    - comment
+    - rating
+    type: object
+  model.CursorMeta:
+    properties:
+      has_more:
+        type: boolean
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+    type: object
+  model.ErrorResponse:
+    properties:
+      code:
+        type: string
+      fields:
+        additionalProperties:
+          type: string
+        type: object
+      message:
+        type: string
+      request_id:
+        type: string
+      success:
+        type: boolean
+    type: object
+  model.HealthResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  model.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  model.LoginResponse:
+    properties:
+      refresh_token:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/model.LoginUser'
+    type: object
+  model.LoginUser:
+    properties:
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
+  model.MyCourses:
+    properties:
+      courses:
+        items:
+          $ref: '#/definitions/model.Course'
+        type: array
+      max_credits:
+        type: integer
+      total_credits:
+        type: integer
+    type: object
+  model.MyCoursesResponse:
+    properties:
+      data:
+        $ref: '#/definitions/model.MyCourses'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  model.Notification:
+    properties:
+      body:
+        type: string
+      channel:
+        type: string
+      id:
+        type: integer
+      outbox_id:
+        type: integer
+      sent_at:
+        type: string
+      subject:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.QueueInfo:
+    properties:
+      active:
+        type: integer
+      archived:
+        type: integer
+      completed:
+        type: integer
+      failed_today:
+        type: integer
+      name:
+        type: string
+      pending:
+        type: integer
+      processed_today:
+        type: integer
+      retry:
+        type: integer
+      scheduled:
+        type: integer
+    type: object
+  model.QueueStats:
+    properties:
+      notifications_sent:
+        type: integer
+      oldest_pending_age:
+        type: string
+      outbox_pending:
+        type: integer
+      outbox_published:
+        type: integer
+      queue:
+        $ref: '#/definitions/model.QueueInfo'
+      queue_error:
+        type: string
+    type: object
+  model.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  model.RegisterRequest:
+    properties:
+      email:
+        maxLength: 120
+        type: string
+      password:
+        maxLength: 72
+        type: string
+      username:
+        maxLength: 30
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  model.RegisterResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
+  model.Reply:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.Review:
+    properties:
+      comment:
+        type: string
+      course_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: string
+      rating:
+        type: integer
+      replies:
+        items:
+          $ref: '#/definitions/model.Reply'
+        type: array
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.ReviewPage:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.Review'
+        type: array
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/model.ReviewPageMeta'
+      success:
+        type: boolean
+    type: object
+  model.ReviewPageMeta:
+    properties:
+      has_more:
+        type: boolean
+      limit:
+        type: integer
+      next_before:
+        type: string
+    type: object
+  model.ReviewResponse:
+    properties:
+      data:
+        $ref: '#/definitions/model.Review'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  model.ReviewSummary:
+    properties:
+      average_rating:
+        type: number
+      course_id:
+        type: integer
+      distribution:
+        additionalProperties:
+          type: integer
+        type: object
+      total_reviews:
+        type: integer
+    type: object
+  model.ReviewSummaryResponse:
+    properties:
+      data:
+        $ref: '#/definitions/model.ReviewSummary'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  model.SwapRequest:
+    properties:
+      from_course_id:
+        maximum: 2147483647
+        minimum: 1
+        type: integer
+      to_course_id:
+        maximum: 2147483647
+        minimum: 1
+        type: integer
+    required:
+    - from_course_id
+    - to_course_id
+    type: object
+  model.UpdateQuotaRequest:
+    properties:
+      quota:
+        maximum: 500
+        minimum: 1
+        type: integer
+      version:
+        maximum: 2147483647
+        minimum: 1
+        type: integer
+    required:
+    - quota
+    - version
+    type: object
+  model.WebResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/model.CursorMeta'
+      success:
+        type: boolean
+    type: object
+info:
+  contact:
+    name: Praktikum Backend Lanjut
+  description: API REST untuk data mahasiswa, prestasi, dan KRS (pengambilan kelas).
+    Notifikasi KRS dikirim lewat worker Asynq + relay outbox.
+  license:
+    name: MIT
+  title: API KRS Praktikum Backend Lanjut
+  version: "1.0"
+paths:
+  /admin/queue:
+    get:
+      description: Mengembalikan statistik outbox (pending/published), jumlah notifikasi
+        terkirim, dan info antrean Redis.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.QueueStats'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Statistik antrean
+      tags:
+      - Notifications
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Memeriksa username + password lalu menerbitkan access token dan
+        refresh token. Percobaan login dibatasi 5 kali gagal per menit per IP.
+      parameters:
+      - description: Kredensial login
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Login dan terbitkan token JWT
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Menukar refresh token dengan pasangan token baru (rotation). Token
+        lama langsung dicabut.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.WebResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Perbarui access token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Mendaftarkan akun mahasiswa baru. Username harus unik.
+      parameters:
+      - description: Data pendaftaran
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Registrasi akun
+      tags:
+      - Auth
+  /courses:
+    get:
+      description: Mengembalikan seluruh kelas yang tersedia beserta kuota dan jumlah
+        peserta.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Course'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Daftar kelas
+      tags:
+      - Courses
+  /courses/{id}:
+    get:
+      description: 'Mengembalikan detail satu kelas: kode, nama, SKS, kuota, dan jumlah
+        peserta.'
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.CourseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Detail satu kelas
+      tags:
+      - Courses
+    patch:
+      consumes:
+      - application/json
+      description: Mengubah kuota peserta satu kelas. Memerlukan version untuk optimistic
+        locking.
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Kuota baru dan versi
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateQuotaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Course'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ubah kuota kelas
+      tags:
+      - Courses
+  /courses/{id}/enroll:
+    delete:
+      description: Membatalkan pengambilan satu kelas dari KRS user.
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Batalkan ambil kelas (drop)
+      tags:
+      - Courses
+    post:
+      description: Mendaftarkan user ke kelas. Gagal bila kuota penuh (409), sudah
+        terdaftar (409), atau total SKS melebihi batas (409).
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Course'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ambil kelas (KRS)
+      tags:
+      - Courses
+  /courses/{id}/reviews:
+    get:
+      description: 'Ulasan kelas diurutkan terbaru dulu. Cursor pagination: ?limit
+        (maks 50), ?before, ?tag.'
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Jumlah data per halaman (default 10, maks 50)
+        in: query
+        name: limit
+        type: integer
+      - description: ID ulasan terakhir yang sudah dilihat
+        in: query
+        name: before
+        type: string
+      - description: Saring satu tag
+        in: query
+        name: tag
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.ReviewPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Daftar ulasan satu kelas
+      tags:
+      - Reviews
+    post:
+      consumes:
+      - application/json
+      description: Hanya peserta kelas yang boleh menulis ulasan. Satu mahasiswa hanya
+        boleh satu ulasan per kelas.
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Isi ulasan
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateReviewRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.ReviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tulis ulasan kelas
+      tags:
+      - Reviews
+  /courses/{id}/reviews/summary:
+    get:
+      description: Menghitung jumlah ulasan, rata-rata rating (2 desimal), dan distribusi
+        rating 1..5.
+      parameters:
+      - description: ID kelas
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.ReviewSummaryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ringkasan ulasan satu kelas
+      tags:
+      - Reviews
+  /courses/mine:
+    get:
+      description: Mengembalikan kelas yang diambil user beserta total SKS dan batas
+        maksimum SKS per semester.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MyCoursesResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Daftar KRS saya
+      tags:
+      - Courses
+  /enrollments/swap:
+    post:
+      consumes:
+      - application/json
+      description: Menukar kelas asal dengan kelas tujuan. Kuota, SKS, dan status
+        peserta dijaga dalam satu transaksi.
+      parameters:
+      - description: Kelas asal dan tujuan
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.SwapRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Course'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tukar kelas (swap)
+      tags:
+      - Courses
+  /health:
+    get:
+      description: Memeriksa koneksi ke PostgreSQL dan MongoDB.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      summary: Health check
+      tags:
+      - Health
+  /notifications/mine:
+    get:
+      description: Mengembalikan notifikasi milik user yang sedang login (20 terbaru).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Notification'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Daftar notifikasi saya
+      tags:
+      - Notifications
+  /reviews/{id}:
+    delete:
+      description: Menghapus satu ulasan kelas. Membutuhkan permission review:moderate.
+      parameters:
+      - description: ObjectID ulasan (hex)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.WebResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Hapus ulasan (moderasi)
+      tags:
+      - Reviews
+    get:
+      description: Mengambil satu ulasan kelas berdasarkan ObjectID hex.
+      parameters:
+      - description: ObjectID ulasan (hex)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.ReviewResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Detail satu ulasan
+      tags:
+      - Reviews
+securityDefinitions:
+  BearerAuth:
+    description: 'Token JWT hasil login: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

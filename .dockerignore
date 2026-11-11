@@ -1,0 +1,24 @@
+# Rahasia dan konfigurasi lokal tidak boleh masuk image.
+.env
+.env.*
+!.env.example
+
+# Artefak runtime dan hasil uji.
+logs/
+coverage.out
+*.exe
+*.log
+
+# Git dan dokumen (image hanya butuh kode + migrations).
+.git
+.gitignore
+.github
+tools/
+README.md
+ai-usage.md
+*.md
+
+# Dokumen hasil generate swag tidak ikut (spec-nya memang dibaca dari
+# image), TAPI docs/docs.go wajib ada karena diimpor main.go.
+docs/*
+!docs/docs.go

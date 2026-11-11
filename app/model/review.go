@@ -52,3 +52,26 @@ type ReviewPageMeta struct {
 	HasMore    bool   `json:"has_more"`
 	NextBefore string `json:"next_before"`
 }
+
+// ReviewResponse adalah response satu ulasan (GET /reviews/:id).
+type ReviewResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    Review `json:"data"`
+}
+
+// ReviewSummary adalah ringkasan ulasan satu kelas: jumlah ulasan,
+// rata-rata rating (2 desimal), dan distribusi rating 1..5.
+type ReviewSummary struct {
+	CourseID      int            `json:"course_id"`
+	TotalReviews  int            `json:"total_reviews"`
+	AverageRating float64        `json:"average_rating"`
+	Distribution  map[string]int `json:"distribution"`
+}
+
+// ReviewSummaryResponse adalah response GET /courses/:id/reviews/summary.
+type ReviewSummaryResponse struct {
+	Success bool          `json:"success"`
+	Message string        `json:"message"`
+	Data    ReviewSummary `json:"data"`
+}

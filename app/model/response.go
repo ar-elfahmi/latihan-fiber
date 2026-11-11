@@ -41,3 +41,10 @@ type ErrorResponse struct {
 	Fields    map[string]string `json:"fields,omitempty"`
 	RequestID string            `json:"request_id"`
 }
+
+// HealthResponse adalah response GET /api/v1/health. Struct bernama
+// supaya skema Swagger menampilkan field-nya.
+type HealthResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}

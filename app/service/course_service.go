@@ -16,6 +16,16 @@ type CourseService struct {
 	Repo repository.CourseRepository
 }
 
+// List mengembalikan seluruh kelas yang tersedia.
+//
+// @Summary		Daftar kelas
+// @Description	Mengembalikan seluruh kelas yang tersedia beserta kuota dan jumlah peserta.
+// @Tags			Courses
+// @Produce		json
+// @Success		200	{array}		model.Course
+// @Failure		500	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/courses [get]
 func (s CourseService) List(c *fiber.Ctx) error {
 	courses, err := s.Repo.List(c.UserContext())
 	if err != nil {
@@ -24,6 +34,16 @@ func (s CourseService) List(c *fiber.Ctx) error {
 	return c.JSON(courses)
 }
 
+// Mine mengembalikan KRS milik user yang sedang login.
+//
+// @Summary		Daftar KRS saya
+// @Description	Mengembalikan kelas yang diambil user beserta total SKS dan batas maksimum SKS per semester.
+// @Tags			Courses
+// @Produce		json
+// @Success		200	{object}	model.MyCoursesResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/courses/mine [get]
 func (s CourseService) Mine(c *fiber.Ctx) error {
 	courses, err := s.Repo.ListByUser(c.UserContext(), CurrentUserID(c))
 	if err != nil {
@@ -36,7 +56,7 @@ func (s CourseService) Mine(c *fiber.Ctx) error {
 	for _, course := range courses {
 		total += course.Credits
 	}
-	return c.JSON(model.WebResponse{
+	return c.JSON(model.MyCoursesResponse{
 		Success: true,
 		Message: "KRS berhasil diambil",
 		Data: model.MyCourses{
@@ -47,6 +67,18 @@ func (s CourseService) Mine(c *fiber.Ctx) error {
 	})
 }
 
+// Detail mengembalikan detail satu kelas.
+//
+// @Summary		Detail satu kelas
+// @Description	Mengembalikan detail satu kelas: kode, nama, SKS, kuota, dan jumlah peserta.
+// @Tags			Courses
+// @Produce		json
+// @Param			id	path		int	true	"ID kelas"
+// @Success		200	{object}	model.CourseResponse
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		404	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/courses/{id} [get]
 func (s CourseService) Detail(c *fiber.Ctx) error {
 	id, err := courseID(c)
 	if err != nil {
@@ -56,13 +88,26 @@ func (s CourseService) Detail(c *fiber.Ctx) error {
 	if err != nil {
 		return translateCourseError(err)
 	}
-	return c.JSON(model.WebResponse{
+	return c.JSON(model.CourseResponse{
 		Success: true,
 		Message: "detail kelas berhasil diambil",
 		Data:    course,
 	})
 }
 
+// Enroll mendaftarkan user ke satu kelas.
+//
+// @Summary		Ambil kelas (KRS)
+// @Description	Mendaftarkan user ke kelas. Gagal bila kuota penuh (409), sudah terdaftar (409), atau total SKS melebihi batas (409).
+// @Tags			Courses
+// @Produce		json
+// @Param			id	path		int	true	"ID kelas"
+// @Success		201	{object}	model.Course
+// @Failure		401	{object}	model.ErrorResponse
+// @Failure		404	{object}	model.ErrorResponse
+// @Failure		409	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/courses/{id}/enroll [post]
 func (s CourseService) Enroll(c *fiber.Ctx) error {
 	id, err := courseID(c)
 	if err != nil {
@@ -75,6 +120,19 @@ func (s CourseService) Enroll(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(course)
 }
 
+// Drop membatalkan pengambilan satu kelas.
+//
+// @Summary		Batalkan ambil kelas (drop)
+// @Description	Membatalkan pengambilan satu kelas dari KRS user.
+// @Tags			Courses
+// @Produce		json
+// @Param			id	path		int	true	"ID kelas"
+// @Success		204
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		404	{object}	model.ErrorResponse
+// @Failure		409	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/courses/{id}/enroll [delete]
 func (s CourseService) Drop(c *fiber.Ctx) error {
 	id, err := courseID(c)
 	if err != nil {
@@ -86,6 +144,21 @@ func (s CourseService) Drop(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// Swap menukar satu kelas dengan kelas lain dalam satu transaksi.
+//
+// @Summary		Tukar kelas (swap)
+// @Description	Menukar kelas asal dengan kelas tujuan. Kuota, SKS, dan status peserta dijaga dalam satu transaksi.
+// @Tags			Courses
+// @Accept			json
+// @Produce		json
+// @Param			request	body		model.SwapRequest	true	"Kelas asal dan tujuan"
+// @Success		200	{object}	model.Course
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		404	{object}	model.ErrorResponse
+// @Failure		409	{object}	model.ErrorResponse
+// @Failure		422	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/enrollments/swap [post]
 func (s CourseService) Swap(c *fiber.Ctx) error {
 	var req model.SwapRequest
 	if err := helper.ParseBody(c, &req); err != nil {
@@ -104,6 +177,22 @@ func (s CourseService) Swap(c *fiber.Ctx) error {
 	return c.JSON(course)
 }
 
+// UpdateQuota mengubah kuota satu kelas (admin).
+//
+// @Summary		Ubah kuota kelas
+// @Description	Mengubah kuota peserta satu kelas. Memerlukan version untuk optimistic locking.
+// @Tags			Courses
+// @Accept			json
+// @Produce		json
+// @Param			id		path		int							true	"ID kelas"
+// @Param			request	body		model.UpdateQuotaRequest	true	"Kuota baru dan versi"
+// @Success		200	{object}	model.Course
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		404	{object}	model.ErrorResponse
+// @Failure		409	{object}	model.ErrorResponse
+// @Failure		422	{object}	model.ErrorResponse
+// @Security		BearerAuth
+// @Router			/courses/{id} [patch]
 func (s CourseService) UpdateQuota(c *fiber.Ctx) error {
 	id, err := courseID(c)
 	if err != nil {

@@ -24,6 +24,19 @@ type AuthService struct {
 	Limiter *helper.LoginLimiter
 }
 
+// Register mendaftarkan akun baru (publik, tanpa token).
+//
+// @Summary		Registrasi akun
+// @Description	Mendaftarkan akun mahasiswa baru. Username harus unik.
+// @Tags			Auth
+// @Accept			json
+// @Produce		json
+// @Param			request	body		model.RegisterRequest	true	"Data pendaftaran"
+// @Success		201	{object}	model.RegisterResponse
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		409	{object}	model.ErrorResponse
+// @Failure		422	{object}	model.ErrorResponse
+// @Router			/auth/register [post]
 func (s AuthService) Register(c *fiber.Ctx) error {
 	var req model.RegisterRequest
 	if err := helper.ParseBody(c, &req); err != nil {
@@ -46,11 +59,24 @@ func (s AuthService) Register(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Internal(err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"id": id, "username": req.Username, "email": req.Email})
+	return c.Status(fiber.StatusCreated).JSON(model.RegisterResponse{ID: id, Username: req.Username, Email: req.Email})
 }
 
 // Login memeriksa username + password, lalu memberi token JWT.
 // Alur: baca body -> validasi -> cari user -> cocokkan password -> buat token.
+//
+// @Summary		Login dan terbitkan token JWT
+// @Description	Memeriksa username + password lalu menerbitkan access token dan refresh token. Percobaan login dibatasi 5 kali gagal per menit per IP.
+// @Tags			Auth
+// @Accept			json
+// @Produce		json
+// @Param			request	body		model.LoginRequest	true	"Kredensial login"
+// @Success		200	{object}	model.LoginResponse
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Failure		422	{object}	model.ErrorResponse
+// @Failure		429	{object}	model.ErrorResponse
+// @Router			/auth/login [post]
 func (s AuthService) Login(c *fiber.Ctx) error {
 	// 1. Baca body JSON.
 	var req model.LoginRequest
@@ -98,15 +124,27 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Internal(err)
 	}
-	return c.JSON(fiber.Map{
-		"token":         token,
-		"refresh_token": refresh,
-		"user":          fiber.Map{"id": u.ID, "username": u.Username},
+	return c.JSON(model.LoginResponse{
+		Token:        token,
+		RefreshToken: refresh,
+		User:         model.LoginUser{ID: u.ID, Username: u.Username},
 	})
 }
 
 // Refresh menukar refresh token dengan pasangan token baru (rotation):
 // token lama langsung dicabut, pemakaian ulang → 401.
+//
+// @Summary		Perbarui access token
+// @Description	Menukar refresh token dengan pasangan token baru (rotation). Token lama langsung dicabut.
+// @Tags			Auth
+// @Accept			json
+// @Produce		json
+// @Param			request	body		model.RefreshRequest	true	"Refresh token"
+// @Success		200	{object}	model.WebResponse
+// @Failure		400	{object}	model.ErrorResponse
+// @Failure		401	{object}	model.ErrorResponse
+// @Failure		422	{object}	model.ErrorResponse
+// @Router			/auth/refresh [post]
 func (s AuthService) Refresh(c *fiber.Ctx) error {
 	var req model.RefreshRequest
 	if err := helper.ParseBody(c, &req); err != nil {

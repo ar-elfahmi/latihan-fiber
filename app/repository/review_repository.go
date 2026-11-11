@@ -168,3 +168,37 @@ func (r *reviewMongoRepository) FindByCourse(ctx context.Context, courseID int) 
 	}
 	return reviews, nil
 }
+
+// FindByID mengambil satu ulasan berdasarkan ObjectID hex.
+// ID bukan hex yang valid -> ErrInvalidID; dokumen tidak ada -> ErrNotFound.
+func (r *reviewMongoRepository) FindByID(ctx context.Context, id string) (model.Review, error) {
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return model.Review{}, ErrInvalidID
+	}
+	var doc reviewDocument
+	if err := r.coll.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return model.Review{}, ErrNotFound
+		}
+		return model.Review{}, fmt.Errorf("membaca ulasan: %w", err)
+	}
+	return doc.toModel(), nil
+}
+
+// Delete menghapus satu ulasan (moderasi). ID bukan hex yang valid ->
+// ErrInvalidID; dokumen tidak ada -> ErrNotFound.
+func (r *reviewMongoRepository) Delete(ctx context.Context, id string) error {
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return ErrInvalidID
+	}
+	res, err := r.coll.DeleteOne(ctx, bson.M{"_id": oid})
+	if err != nil {
+		return fmt.Errorf("menghapus ulasan: %w", err)
+	}
+	if res.DeletedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
