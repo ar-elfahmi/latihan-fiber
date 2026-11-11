@@ -19,10 +19,22 @@ import (
 // CourseRepository adalah kontrak repository tabel courses.
 type CourseRepository interface {
 	List(ctx context.Context) ([]model.Course, error)
+	FindByID(ctx context.Context, id int) (model.Course, error)
+	IsEnrolled(ctx context.Context, courseID, userID int) (bool, error)
+	ListByUser(ctx context.Context, userID int) ([]model.Course, error)
 	Enroll(ctx context.Context, userID, courseID int) (model.Course, error)
 	Drop(ctx context.Context, userID, courseID int) error
 	Swap(ctx context.Context, userID, fromID, toID int) (model.Course, error)
 	UpdateQuota(ctx context.Context, courseID int, req model.UpdateQuotaRequest) (model.Course, error)
+}
+
+// ReviewRepository adalah kontrak repository ulasan kelas (MongoDB,
+// koleksi course_reviews). Satu mahasiswa satu ulasan per kelas (unique
+// index course_user_unique).
+type ReviewRepository interface {
+	EnsureIndexes(ctx context.Context) error
+	Create(ctx context.Context, r model.Review) (model.Review, error)
+	FindByCourse(ctx context.Context, courseID int) ([]model.Review, error)
 }
 
 // UserRepository adalah kontrak repository tabel users.

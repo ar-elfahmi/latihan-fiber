@@ -44,10 +44,25 @@ func Setup(app *fiber.App, deps Dependencies) {
 	// Login: terbitkan token JWT (tidak perlu token untuk masuk ke sini).
 	api.Post("/auth/login", s.Auth.Login)
 	api.Post("/auth/register", s.Auth.Register)
+	api.Post("/auth/refresh", s.Auth.Refresh)
 
 	// Semua route yang didaftarkan SETELAH baris ini wajib bawa token.
 	// Modul 6: Protect juga memuat permission live dari RBACRepository.
 	api.Use(middleware.Protect(deps.RBAC, deps.JWTSecret))
+
+	// Sesi & profil (butuh token).
+	api.Post("/auth/logout", s.Auth.Logout)
+	api.Get("/auth/me", s.Auth.Me)
+
+	// KRS milik sendiri. /courses/mine DIDAFTAR SEBELUM /courses/:id supaya
+	// tidak tertelan param :id (Fiber mencocokkan berurutan).
+	api.Get("/courses/mine", s.Course.Mine)
+	api.Get("/courses/:id", s.Course.Detail)
+
+	// Ulasan kelas (MongoDB). Tulis: peserta kelas (course:enroll);
+	// baca: cukup login.
+	api.Post("/courses/:id/reviews", middleware.RequirePermission(perms.CourseEnroll...), s.Review.Create)
+	api.Get("/courses/:id/reviews", s.Review.ListByCourse)
 
 	api.Get("/courses", s.Course.List)
 	api.Post("/courses/:id/enroll", middleware.RequirePermission(perms.CourseEnroll...), s.Course.Enroll)
@@ -95,6 +110,10 @@ func Setup(app *fiber.App, deps Dependencies) {
 	api.Get("/users",
 		middleware.RequirePermission(perms.UserList...),
 		s.User.List,
+	)
+	api.Get("/users/:id",
+		middleware.RequirePermission(perms.UserRead...),
+		s.User.GetByID,
 	)
 
 	// --- Portofolio mahasiswa (MongoDB) ---

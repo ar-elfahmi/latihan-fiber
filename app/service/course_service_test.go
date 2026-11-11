@@ -26,6 +26,18 @@ func (f *fakeCourseRepository) List(context.Context) ([]model.Course, error) {
 	return []model.Course{}, nil
 }
 
+func (f *fakeCourseRepository) FindByID(_ context.Context, id int) (model.Course, error) {
+	return model.Course{ID: id}, nil
+}
+
+func (f *fakeCourseRepository) IsEnrolled(_ context.Context, _, _ int) (bool, error) {
+	return true, nil
+}
+
+func (f *fakeCourseRepository) ListByUser(context.Context, int) ([]model.Course, error) {
+	return []model.Course{}, nil
+}
+
 func (f *fakeCourseRepository) Enroll(_ context.Context, _, _ int) (model.Course, error) {
 	if f.enrollErr != nil {
 		return model.Course{}, f.enrollErr

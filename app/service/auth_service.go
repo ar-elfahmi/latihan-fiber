@@ -18,6 +18,10 @@ type AuthService struct {
 	Repo   repository.UserRepository
 	RBAC   repository.RBACRepository // saat ini unused; disimpan untuk kompatibilitas wiring
 	Tokens *helper.JWTManager        // penerbit token JWT (helper.NewJWTManager)
+
+	// Limiter membatasi percobaan login gagal per IP (Modul 12: 5 kali
+	// gagal per menit per IP -> 429). Bila nil, dipakai limiter bawaan.
+	Limiter *helper.LoginLimiter
 }
 
 func (s AuthService) Register(c *fiber.Ctx) error {
@@ -59,14 +63,28 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 		return helper.Validation(errs)
 	}
 
-	// 3. Cari akun. Salah username ATAU salah password: pesannya sama,
+	// 3. Rate limit: percobaan login dibatasi per IP (Modul 12). Bodies
+	//    rusak / input tidak valid tidak dihitung sebagai kegagalan.
+	//    rusak / input tidak valid tidak dihitung sebagai kegagalan.
+	limiter := s.Limiter
+	if limiter == nil {
+		limiter = helper.DefaultLoginLimiter()
+	}
+	ip := c.IP()
+	if !limiter.Allow(ip) {
+		return helper.TooManyRequests("Terlalu banyak percobaan login")
+	}
+
+	// 4. Cari akun. Salah username ATAU salah password: pesannya sama,
 	//    supaya orang lain tidak tahu field mana yang keliru.
 	u, err := s.Repo.GetByUsername(c.Context(), req.Username)
 	if err != nil || !CheckPassword(req.Password, u.PasswordHash) {
+		limiter.RecordFailure(ip)
 		return helper.Unauthorized("username atau password salah")
 	}
+	limiter.Reset(ip)
 
-	// 4. Buat token dan kirimkan ke client.
+	// 5. Buat token dan kirimkan ke client.
 	if s.Tokens == nil {
 		return helper.Internal(errors.New("penerbit token JWT belum dikonfigurasi"))
 	}
@@ -74,9 +92,85 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Internal(err)
 	}
+	// Non-breaking (S-004 Q1): respons lama {token, user} dipertahankan,
+	// refresh_token ditambahkan sebagai field baru.
+	refresh, err := s.Tokens.GenerateRefreshToken(u.ID, u.Username)
+	if err != nil {
+		return helper.Internal(err)
+	}
 	return c.JSON(fiber.Map{
-		"token": token,
-		"user":  fiber.Map{"id": u.ID, "username": u.Username},
+		"token":         token,
+		"refresh_token": refresh,
+		"user":          fiber.Map{"id": u.ID, "username": u.Username},
+	})
+}
+
+// Refresh menukar refresh token dengan pasangan token baru (rotation):
+// token lama langsung dicabut, pemakaian ulang → 401.
+func (s AuthService) Refresh(c *fiber.Ctx) error {
+	var req model.RefreshRequest
+	if err := helper.ParseBody(c, &req); err != nil {
+		return helper.BadRequest("body harus berupa JSON yang valid")
+	}
+	if fields := helper.ValidateStruct(req); len(fields) > 0 {
+		return helper.Validation(fields)
+	}
+	if s.Tokens == nil {
+		return helper.Internal(errors.New("penerbit token JWT belum dikonfigurasi"))
+	}
+	claims, err := s.Tokens.ConsumeRefreshToken(req.RefreshToken)
+	if err != nil {
+		return helper.Unauthorized("refresh token tidak valid, kedaluwarsa, atau sudah dicabut")
+	}
+	userID, username := claimIdentity(claims)
+	if userID <= 0 {
+		return helper.Unauthorized("refresh token tidak berisi identitas yang sah")
+	}
+	access, err := s.Tokens.GenerateAccessToken(userID, username)
+	if err != nil {
+		return helper.Internal(err)
+	}
+	refresh, err := s.Tokens.GenerateRefreshToken(userID, username)
+	if err != nil {
+		return helper.Internal(err)
+	}
+	return c.JSON(model.WebResponse{
+		Success: true,
+		Message: "token berhasil diperbarui",
+		Data:    model.TokenPair{AccessToken: access, RefreshToken: refresh},
+	})
+}
+
+// Logout mencabut refresh token. Access token tetap stateless: tetap valid
+// sampai kedaluwarsa (didokumentasikan, S-004 Q2).
+func (s AuthService) Logout(c *fiber.Ctx) error {
+	var req model.RefreshRequest
+	if err := helper.ParseBody(c, &req); err != nil {
+		return helper.BadRequest("body harus berupa JSON yang valid")
+	}
+	if fields := helper.ValidateStruct(req); len(fields) > 0 {
+		return helper.Validation(fields)
+	}
+	if s.Tokens == nil {
+		return helper.Internal(errors.New("penerbit token JWT belum dikonfigurasi"))
+	}
+	if err := s.Tokens.RevokeRefreshToken(req.RefreshToken); err != nil {
+		return helper.Unauthorized("refresh token tidak valid, kedaluwarsa, atau sudah dicabut")
+	}
+	return c.JSON(model.WebResponse{Success: true, Message: "berhasil keluar"})
+}
+
+// Me mengembalikan profil user yang sedang login (tanpa password_hash —
+// model.User menandai field itu json:"-").
+func (s AuthService) Me(c *fiber.Ctx) error {
+	u, err := s.Repo.FindByID(c.UserContext(), CurrentUserID(c))
+	if err != nil {
+		return translateError(err, "user")
+	}
+	return c.JSON(model.WebResponse{
+		Success: true,
+		Message: "profil berhasil diambil",
+		Data:    u,
 	})
 }
 

@@ -28,6 +28,8 @@ func TestNewPermissionSetKeepsPermissionList(t *testing.T) {
 		{aksi: "StudentUpdate", got: perms.StudentUpdate, want: []string{"student:update:any", "student:update:self"}},
 		{aksi: "StudentDelete", got: perms.StudentDelete, want: []string{"student:delete"}},
 		{aksi: "UserList", got: perms.UserList, want: []string{"user:list"}},
+		{aksi: "UserRead", got: perms.UserRead, want: []string{"user:read"}},
+		{aksi: "ReviewModerate", got: perms.ReviewModerate, want: []string{"review:moderate"}},
 	}
 
 	for _, tc := range cases {
@@ -54,6 +56,8 @@ func TestNewPermissionSetHasNoDuplicates(t *testing.T) {
 		"StudentUpdate":  perms.StudentUpdate,
 		"StudentDelete":  perms.StudentDelete,
 		"UserList":       perms.UserList,
+		"UserRead":       perms.UserRead,
+		"ReviewModerate": perms.ReviewModerate,
 	}
 
 	for aksi, group := range groups {

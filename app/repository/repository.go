@@ -12,6 +12,13 @@ var (
 	ErrNotFound        = errors.New("data tidak ditemukan")
 	ErrDuplicate       = errors.New("data sudah ada")
 	ErrStudentNotFound = errors.New("mahasiswa tidak ditemukan")
+	// Sentinel ulasan kelas (MongoDB). Dipakai ReviewService lewat
+	// translateReviewError (S-004); bentuk tabel modul, S-005 white-box test.
+	ErrInvalidID    = errors.New("id tidak valid")
+	ErrNotOwner     = errors.New("bukan pemilik data")
+	ErrOwnReview    = errors.New("tidak boleh menilai ulasan sendiri")
+	ErrAlreadyVoted = errors.New("sudah menilai ulasan ini")
+	ErrReplyLimit   = errors.New("jumlah balasan sudah mencapai batas")
 )
 
 // isDuplicate mendeteksi pelanggaran unique (kode PG 23505).
