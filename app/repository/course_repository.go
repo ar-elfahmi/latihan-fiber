@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"latihan-fiber/app/domain"
 	"latihan-fiber/app/model"
 )
 
@@ -18,14 +17,44 @@ var (
 	ErrNotEnrolled     = errors.New("belum terdaftar di kelas ini")
 	// Pesan batas SKS disusun dari konstanta tunggal supaya angka 24 tidak
 	// ditulis dua kali; teksnya tetap "batas 24 SKS terlampaui".
-	ErrCreditLimit   = errors.New(fmt.Sprintf("batas %d SKS terlampaui", domain.MaxCreditsPerSemester))
+	ErrCreditLimit   = errors.New(fmt.Sprintf("batas %d SKS terlampaui", model.MaxCreditsPerSemester))
 	ErrQuotaConflict = errors.New("versi kelas berubah atau kuota di bawah jumlah peserta")
 )
 
+// ErrMissingCreditLimitRules muncul kalau repository KRS dibuat tanpa aturan
+// batas SKS. Repository tidak boleh dipakai tanpa aturan itu.
+var ErrMissingCreditLimitRules = errors.New("aturan batas SKS untuk repository KRS belum diisi")
+
+// CreditRules adalah aturan domain KRS yang dipakai repository di dalam
+// transaksi. Aturan ini berasal dari app/service (app/service/course_rules.go)
+// dan diinjeksi lewat main.go, karena app/repository tidak boleh mengimpor
+// app/service (service sudah mengimpor repository → siklus import).
+//
+// Dengan injeksi ini implementasi aturannya tetap satu: yang diuji modul
+// Modul 12 (service.WithinCreditLimit, service.CreditsAfterSwap) sama
+// dengan yang dipakai repository saat memeriksa batas SKS.
+type CreditRules struct {
+	WithinCreditLimit func(current, delta int) bool
+	CreditsAfterSwap  func(currentCredits int, oldCourse, newCourse model.Course) int
+}
+
 const courseColumns = "id, code, name, credits, quota, enrolled_count, version, created_at"
 
+// PostgresCourseRepository menyimpan koneksi database dan aturan domain KRS.
+// Field-nya tidak diekspos:repository harus dibuat lewat
+// NewPostgresCourseRepository supaya aturan batas SKS selalu terisi.
 type PostgresCourseRepository struct {
-	DB *pgxpool.Pool
+	db    *pgxpool.Pool
+	rules CreditRules
+}
+
+// NewPostgresCourseRepository membuat repository KRS dengan aturan domain yang
+// diinjeksi. ErrMissingCreditLimitRules kalau aturan wajib tidak diisi.
+func NewPostgresCourseRepository(db *pgxpool.Pool, rules CreditRules) (PostgresCourseRepository, error) {
+	if rules.WithinCreditLimit == nil || rules.CreditsAfterSwap == nil {
+		return PostgresCourseRepository{}, ErrMissingCreditLimitRules
+	}
+	return PostgresCourseRepository{db: db, rules: rules}, nil
 }
 
 func scanCourse(row pgx.Row) (model.Course, error) {
@@ -36,7 +65,7 @@ func scanCourse(row pgx.Row) (model.Course, error) {
 }
 
 func (r PostgresCourseRepository) List(ctx context.Context) ([]model.Course, error) {
-	rows, err := r.DB.Query(ctx, "SELECT "+courseColumns+" FROM courses ORDER BY id")
+	rows, err := r.db.Query(ctx, "SELECT "+courseColumns+" FROM courses ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +84,8 @@ func (r PostgresCourseRepository) List(ctx context.Context) ([]model.Course, err
 
 func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID int) (model.Course, error) {
 	var course model.Course
-	outbox := PostgresOutboxRepository{DB: r.DB}
-	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
+	outbox := PostgresOutboxRepository{DB: r.db}
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, courseID, courseID); err != nil {
 			return err
 		}
@@ -78,7 +107,7 @@ func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID i
 		if err != nil {
 			return err
 		}
-		if !domain.WithinCreditLimit(total-class.Credits, class.Credits) {
+		if !r.rules.WithinCreditLimit(total-class.Credits, class.Credits) {
 			return ErrCreditLimit
 		}
 		course, err = bumpEnrolledCount(ctx, tx, courseID)
@@ -88,7 +117,7 @@ func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID i
 }
 
 func (r PostgresCourseRepository) Drop(ctx context.Context, userID, courseID int) error {
-	return pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
+	return pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, courseID, courseID); err != nil {
 			return err
 		}
@@ -99,7 +128,7 @@ func (r PostgresCourseRepository) Drop(ctx context.Context, userID, courseID int
 		if err != nil {
 			return err
 		}
-		return (PostgresOutboxRepository{DB: r.DB}).WithTx(tx).Insert(ctx, model.EventEnrollmentDropped, model.EnrollmentEvent{
+		return (PostgresOutboxRepository{DB: r.db}).WithTx(tx).Insert(ctx, model.EventEnrollmentDropped, model.EnrollmentEvent{
 			UserID: userID, CourseID: class.ID, CourseCode: class.Code, CourseName: class.Name,
 		})
 	})
@@ -107,7 +136,7 @@ func (r PostgresCourseRepository) Drop(ctx context.Context, userID, courseID int
 
 func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID int) (model.Course, error) {
 	var course model.Course
-	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, fromID, toID); err != nil {
 			return err
 		}
@@ -139,9 +168,11 @@ func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID
 			return err
 		}
 		if toFound {
-			// SKS setelah tukar = SKS lama - SKS kelas asal + SKS kelas tujuan.
-			afterSwap := domain.CreditsAfterSwap(totalBefore, from, to)
-			if afterSwap > domain.MaxCreditsPerSemester {
+			// Batas SKS setelah tukar: SKS lama - SKS kelas asal + SKS kelas tujuan.
+			// Aturan hitungnya sama dengan yang dipakai service (diinjeksi), dan
+			// batasnya sama dengan model.MaxCreditsPerSemester.
+			afterSwap := r.rules.CreditsAfterSwap(totalBefore, from, to)
+			if afterSwap > model.MaxCreditsPerSemester {
 				return ErrCreditLimit
 			}
 		}
@@ -149,7 +180,7 @@ func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID
 		if err != nil {
 			return err
 		}
-		outbox := PostgresOutboxRepository{DB: r.DB}
+		outbox := PostgresOutboxRepository{DB: r.db}
 		event := model.EnrollmentEvent{
 			UserID: userID, CourseID: course.ID, CourseCode: course.Code, CourseName: course.Name,
 			FromCourseCode: from.Code, FromCourseName: from.Name,
@@ -222,7 +253,7 @@ func drop(ctx context.Context, tx pgx.Tx, userID, courseID int) error {
 
 func (r PostgresCourseRepository) UpdateQuota(ctx context.Context, courseID int, req model.UpdateQuotaRequest) (model.Course, error) {
 	var course model.Course
-	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		var err error
 		course, err = scanCourse(tx.QueryRow(ctx, `UPDATE courses SET quota = $2, version = version + 1
 			WHERE id = $1 AND version = $3 AND enrolled_count <= $2 RETURNING `+courseColumns,
