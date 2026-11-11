@@ -14,5 +14,6 @@ type Services struct {
 	Course       CourseService
 	User         UserService
 	Portfolio    PortfolioService
+	Review       ReviewService
 	Notification NotificationService
 }

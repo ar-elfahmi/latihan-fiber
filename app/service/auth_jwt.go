@@ -25,3 +25,17 @@ import (
 func ParseToken(tokenString string, secret []byte) (jwt.MapClaims, error) {
 	return helper.NewJWTManager(secret).ParseToken(tokenString)
 }
+// claimIdentity membaca sub (id user) dan username dari klaim refresh token.
+func claimIdentity(claims map[string]any) (int, string) {
+	id := 0
+	switch v := claims["sub"].(type) {
+	case float64:
+		id = int(v)
+	case int:
+		id = v
+	case int64:
+		id = int(v)
+	}
+	username, _ := claims["username"].(string)
+	return id, username
+}

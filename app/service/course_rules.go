@@ -38,10 +38,7 @@ func CreditsAfterSwap(currentCredits int, oldCourse, newCourse model.Course) int
 
 // NormalizeTags merapikan daftar tag: memangkas spasi di kedua ujung,
 // mengubah huruf menjadi kecil, membuang tag kosong, menghapus duplikat, dan
-// mempertahankan urutan kemunculan pertama.
-//
-// TODO(S-004): dipakai untuk tag ulasan kelas (MongoDB). Sampai slice itu
-// dikerjakan, fungsi ini belum dipakai kode produksi.
+// mempertahankan urutan kemunculan pertama. Dipakai tag ulasan kelas (S-004).
 func NormalizeTags(tags []string) []string {
 	seen := make(map[string]struct{}, len(tags))
 	normalized := make([]string, 0, len(tags))

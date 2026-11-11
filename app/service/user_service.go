@@ -93,3 +93,28 @@ func (s UserService) List(c *fiber.Ctx) error {
 		"meta": meta,
 	})
 }
+
+// GetByID mengambil detail satu user (GET /users/:id, permission user:read).
+func (s UserService) GetByID(c *fiber.Ctx) error {
+	id, err := userID(c)
+	if err != nil {
+		return err
+	}
+	u, err := s.Repo.FindByID(c.UserContext(), id)
+	if err != nil {
+		return translateError(err, "user")
+	}
+	return c.JSON(model.WebResponse{
+		Success: true,
+		Message: "detail user berhasil diambil",
+		Data:    u,
+	})
+}
+
+func userID(c *fiber.Ctx) (int, error) {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil || id < 1 {
+		return 0, helper.BadRequest("id user harus berupa angka positif")
+	}
+	return id, nil
+}

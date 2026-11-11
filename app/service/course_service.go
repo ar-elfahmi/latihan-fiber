@@ -24,6 +24,45 @@ func (s CourseService) List(c *fiber.Ctx) error {
 	return c.JSON(courses)
 }
 
+func (s CourseService) Mine(c *fiber.Ctx) error {
+	courses, err := s.Repo.ListByUser(c.UserContext(), CurrentUserID(c))
+	if err != nil {
+		return translateCourseError(err)
+	}
+	if courses == nil {
+		courses = []model.Course{}
+	}
+	total := 0
+	for _, course := range courses {
+		total += course.Credits
+	}
+	return c.JSON(model.WebResponse{
+		Success: true,
+		Message: "KRS berhasil diambil",
+		Data: model.MyCourses{
+			Courses:      courses,
+			TotalCredits: total,
+			MaxCredits:   MaxCreditsPerSemester,
+		},
+	})
+}
+
+func (s CourseService) Detail(c *fiber.Ctx) error {
+	id, err := courseID(c)
+	if err != nil {
+		return err
+	}
+	course, err := s.Repo.FindByID(c.UserContext(), id)
+	if err != nil {
+		return translateCourseError(err)
+	}
+	return c.JSON(model.WebResponse{
+		Success: true,
+		Message: "detail kelas berhasil diambil",
+		Data:    course,
+	})
+}
+
 func (s CourseService) Enroll(c *fiber.Ctx) error {
 	id, err := courseID(c)
 	if err != nil {
