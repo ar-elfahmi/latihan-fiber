@@ -168,11 +168,12 @@ func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID
 			return err
 		}
 		if toFound {
-			// Batas SKS setelah tukar: SKS lama - SKS kelas asal + SKS kelas tujuan.
-			// Aturan hitungnya sama dengan yang dipakai service (diinjeksi), dan
-			// batasnya sama dengan model.MaxCreditsPerSemester.
-			afterSwap := r.rules.CreditsAfterSwap(totalBefore, from, to)
-			if afterSwap > model.MaxCreditsPerSemester {
+			// Batas SKS setelah tukar. Perhitungannya (SKS lama - SKS kelas asal +
+			// SKS kelas tujuan) dan pemeriksaannya memakai aturan yang diinjeksi,
+			// jadi hanya ada SATU titik enforcement batas SKS di kode produksi:
+			// mutasi aturan di app/service/course_rules.go ikut memengaruhi jalur
+			// ini, dan aturan yang diinjeksi selalu dipatuhi.
+			if !r.afterSwapWithinLimit(totalBefore, from, to) {
 				return ErrCreditLimit
 			}
 		}
@@ -226,6 +227,18 @@ func totalCredits(ctx context.Context, tx pgx.Tx, userID int) (int, error) {
 	err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(c.credits), 0) FROM enrollments e
 		JOIN courses c ON c.id = e.course_id WHERE e.user_id = $1`, userID).Scan(&total)
 	return total, err
+}
+
+// afterSwapWithinLimit memberi tahu apakah SKS setelah tukar kelas masih di
+// dalam batas. Perhitungan dan pemeriksaannya memakai aturan yang diinjeksi
+// (repository.CreditRules), sehingga hanya ada SATU titik enforcement batas
+// SKS di kode produksi: aturan yang diuji modul dan yang dipakai repository
+// selalu sama.
+func (r PostgresCourseRepository) afterSwapWithinLimit(totalBefore int, from, to model.Course) bool {
+	// SKS setelah tukar = SKS lama - SKS kelas asal + SKS kelas tujuan.
+	afterSwap := r.rules.CreditsAfterSwap(totalBefore, from, to)
+	// delta 0: total SKS setelah tukar sudah dihitung di atas.
+	return r.rules.WithinCreditLimit(afterSwap, 0)
 }
 
 // bumpEnrolledCount menambah jumlah peserta kelas. ErrCourseFull kalau
