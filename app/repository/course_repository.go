@@ -82,6 +82,40 @@ func (r PostgresCourseRepository) List(ctx context.Context) ([]model.Course, err
 	return courses, rows.Err()
 }
 
+// FindByID mengambil satu kelas berdasarkan id.
+// pgx.ErrNoRows bila kelas tidak ada (service memetakan ke 404).
+func (r PostgresCourseRepository) FindByID(ctx context.Context, id int) (model.Course, error) {
+	return scanCourse(r.db.QueryRow(ctx, "SELECT "+courseColumns+" FROM courses WHERE id = $1", id))
+}
+
+// IsEnrolled memberi tahu apakah user terdaftar di kelas.
+func (r PostgresCourseRepository) IsEnrolled(ctx context.Context, courseID, userID int) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM enrollments WHERE course_id = $1 AND user_id = $2)",
+		courseID, userID).Scan(&exists)
+	return exists, err
+}
+
+// ListByUser mengambil seluruh kelas yang diambil user (untuk GET /courses/mine).
+func (r PostgresCourseRepository) ListByUser(ctx context.Context, userID int) ([]model.Course, error) {
+	rows, err := r.db.Query(ctx, `SELECT `+courseColumns+` FROM courses c
+		JOIN enrollments e ON e.course_id = c.id WHERE e.user_id = $1 ORDER BY c.id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	courses := []model.Course{}
+	for rows.Next() {
+		course, err := scanCourse(rows)
+		if err != nil {
+			return nil, err
+		}
+		courses = append(courses, course)
+	}
+	return courses, rows.Err()
+}
+
 func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID int) (model.Course, error) {
 	var course model.Course
 	outbox := PostgresOutboxRepository{DB: r.db}
