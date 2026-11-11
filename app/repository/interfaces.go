@@ -35,6 +35,12 @@ type ReviewRepository interface {
 	EnsureIndexes(ctx context.Context) error
 	Create(ctx context.Context, r model.Review) (model.Review, error)
 	FindByCourse(ctx context.Context, courseID int) ([]model.Review, error)
+	// FindByID mengambil satu ulasan berdasarkan ObjectID hex.
+	// ID tidak valid_hex -> ErrInvalidID; dokumen tidak ada -> ErrNotFound.
+	FindByID(ctx context.Context, id string) (model.Review, error)
+	// Delete menghapus satu ulasan (moderasi). ID tidak valid -> ErrInvalidID;
+	// dokumen tidak ada -> ErrNotFound.
+	Delete(ctx context.Context, id string) error
 }
 
 // UserRepository adalah kontrak repository tabel users.

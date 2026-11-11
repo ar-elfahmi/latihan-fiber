@@ -75,6 +75,7 @@ type ListUserQuery struct {
 func (q ListUserQuery) Offset() int {
 	return (q.Page - 1) * q.Limit
 }
+
 // TokenPair adalah pasangan token yang diterbitkan saat login dan refresh.
 // Bentuk login tetap non-breaking: {token, refresh_token, user} (S-004 Q1).
 type TokenPair struct {
@@ -85,4 +86,28 @@ type TokenPair struct {
 // RefreshRequest adalah body POST /auth/refresh dan POST /auth/logout.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+// RegisterResponse adalah response POST /auth/register. Dulu ditulis
+// dengan fiber.Map; sekarang memakai struct bernama supaya skema
+// Swagger menampilkan field-nya (bukan "object").
+type RegisterResponse struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+// LoginResponse adalah response POST /auth/login. Bentuk JSON-nya
+// sama persis dengan versi lama (token, refresh_token, user) supaya
+// kontrak klien tidak berubah.
+type LoginResponse struct {
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
+	User         LoginUser `json:"user"`
+}
+
+// LoginUser adalah identitas singkat pemanggil pada response login.
+type LoginUser struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
 }

@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/swagger"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	"latihan-fiber/app/model"
 	"latihan-fiber/app/repository"
 	"latihan-fiber/app/service"
 	"latihan-fiber/helper"
@@ -24,6 +26,9 @@ type Dependencies struct {
 	JWTSecret   []byte
 	Pool        *pgxpool.Pool
 	MongoClient *mongo.Client
+	// EnableSwagger menyalakan UI Swagger. Bila false, route /swagger
+	// sama sekali tidak didaftarkan sehingga hasilnya 404.
+	EnableSwagger bool
 }
 
 // Setup mendaftarkan seluruh endpoint aplikasi.
@@ -37,6 +42,12 @@ func Setup(app *fiber.App, deps Dependencies) {
 	// Katalog permission per aksi (helper.NewPermissionSet). Nama
 	// permission tidak ditulis inline supaya satu sumber kebenaran.
 	perms := helper.NewPermissionSet()
+
+	// UI Swagger hanya hidup bila SWAGGER_ENABLED=true. Bila false,
+	// route tidak didaftarkan sama sekali (hasilnya 404).
+	if deps.EnableSwagger {
+		app.Get("/swagger/*", swagger.HandlerDefault)
+	}
 
 	// Health check
 	api.Get("/health", healthCheck(deps.Pool, deps.MongoClient))
@@ -63,6 +74,11 @@ func Setup(app *fiber.App, deps Dependencies) {
 	// baca: cukup login.
 	api.Post("/courses/:id/reviews", middleware.RequirePermission(perms.CourseEnroll...), s.Review.Create)
 	api.Get("/courses/:id/reviews", s.Review.ListByCourse)
+	api.Get("/courses/:id/reviews/summary", s.Review.Summary)
+
+	// Detail/hapus satu ulasan (moderasi butuh permission review:moderate).
+	api.Get("/reviews/:id", s.Review.Detail)
+	api.Delete("/reviews/:id", middleware.RequirePermission(perms.ReviewModerate...), s.Review.Delete)
 
 	api.Get("/courses", s.Course.List)
 	api.Post("/courses/:id/enroll", middleware.RequirePermission(perms.CourseEnroll...), s.Course.Enroll)
@@ -143,6 +159,15 @@ func Setup(app *fiber.App, deps Dependencies) {
 	)
 }
 
+// healthCheck memastikan server, PostgreSQL, dan MongoDB hidup.
+//
+// @Summary Health check
+// @Description Memeriksa koneksi ke PostgreSQL dan MongoDB.
+// @Tags Health
+// @Produce json
+// @Success 200 {object} model.HealthResponse
+// @Failure 503 {object} model.ErrorResponse
+// @Router /health [get]
 func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
@@ -156,9 +181,9 @@ func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {
 		}
 
 		// Pakai c.JSON seperti kode lain di repo ini
-		return c.JSON(fiber.Map{
-			"status":  "ok",
-			"message": "server, PostgreSQL, dan MongoDB berjalan",
+		return c.JSON(model.HealthResponse{
+			Status:  "ok",
+			Message: "server, PostgreSQL, dan MongoDB berjalan",
 		})
 	}
 }

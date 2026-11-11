@@ -1,3 +1,17 @@
+// Package main merakit aplikasi API KRS Praktikum Backend Lanjut:
+// database -> repository -> service -> Fiber.
+//
+//	@title			API KRS Praktikum Backend Lanjut
+//	@version		1.0
+//	@description	API REST untuk data mahasiswa, prestasi, dan KRS (pengambilan kelas). Notifikasi KRS dikirim lewat worker Asynq + relay outbox.
+//	@BasePath		/api/v1
+//	@contact.name	Praktikum Backend Lanjut
+//	@license.name	MIT
+//
+// @securityDefinitions.apikey	BearerAuth
+// @in							header
+// @name						Authorization
+// @description				Token JWT hasil login: Bearer <token>
 package main
 
 import (
@@ -11,6 +25,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/hibiken/asynq"
+
+	// Package docs berisi spesifikasi OpenAPI hasil swaggo/swag. Diimpor
+	// supaya spec terdaftar pada swag.ReadDoc dan UI Swagger bisa
+	// menampilkannya. Dijalankan: go tool swag init -g main.go -o docs/
+	_ "latihan-fiber/docs"
 
 	"latihan-fiber/app/repository"
 	"latihan-fiber/app/service"
@@ -107,8 +126,8 @@ func main() {
 			Tokens:  helper.NewJWTManager(secret),
 			Limiter: helper.NewLoginLimiter(helper.DefaultLoginLimit, helper.DefaultLoginWindow),
 		},
-		Course:   service.CourseService{Repo: courseRepo},
-		User:     service.UserService{Repo: userRepo},
+		Course: service.CourseService{Repo: courseRepo},
+		User:   service.UserService{Repo: userRepo},
 		Portfolio: service.PortfolioService{
 			Repo:        portfolioRepo,
 			StudentRepo: studentRepo,
@@ -126,11 +145,12 @@ func main() {
 	app.Use(middleware.Logger)
 	// Protect butuh rbacRepo untuk fetch permission live (Modul 6).
 	route.Setup(app, route.Dependencies{
-		Services:    svc,
-		RBAC:        rbacRepo,
-		JWTSecret:   secret,
-		Pool:        db,
-		MongoClient: mongoClient,
+		Services:      svc,
+		RBAC:          rbacRepo,
+		JWTSecret:     secret,
+		Pool:          db,
+		MongoClient:   mongoClient,
+		EnableSwagger: appCfg.EnableSwagger,
 	})
 	// 4. Penampung 404 (URL tidak dikenal). Dikembalikan sebagai
 	// *AppError agar ErrorHandler membentuk JSON seragam.

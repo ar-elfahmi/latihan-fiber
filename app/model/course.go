@@ -28,9 +28,25 @@ type UpdateQuotaRequest struct {
 	Quota   int `json:"quota" validate:"required,min=1,max=500"`
 	Version int `json:"version" validate:"required,min=1,max=2147483647"`
 }
+
 // MyCourses adalah isi field data pada GET /courses/mine.
 type MyCourses struct {
 	Courses      []Course `json:"courses"`
 	TotalCredits int      `json:"total_credits"`
 	MaxCredits   int      `json:"max_credits"`
+}
+
+// CourseResponse adalah response GET /courses/:id. Struct bernama
+// dipakai supaya skema Swagger menampilkan field-field Course.
+type CourseResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    Course `json:"data"`
+}
+
+// MyCoursesResponse adalah response GET /courses/mine.
+type MyCoursesResponse struct {
+	Success bool      `json:"success"`
+	Message string    `json:"message"`
+	Data    MyCourses `json:"data"`
 }

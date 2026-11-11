@@ -1,0 +1,153 @@
+# =====================================================================
+# docker-compose.yml — 5 service: api, worker, postgres, mongo, redis.
+#
+# JWT_SECRET WAJIB diisi di .env. Compose berhenti dengan pesan jelas
+# bila kosong (${JWT_SECRET:?...}).
+# =====================================================================
+
+services:
+  # -------------------------------------------------------------------
+  # PostgreSQL — sumber data utama. Migration di folder migrations/
+  # dijalankan otomatis oleh image postgres HANYA saat volume kosong
+  # (mekanisme /docker-entrypoint-initdb.d).
+  # -------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    container_name: s006-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-praktikum_backend}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-praktikum_backend}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------
+  # MongoDB — menyimpan ulasan kelas dan portofolio.
+  # -------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: s006-mongo
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1})"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------
+  # Redis — antrean Asynq untuk task notifikasi.
+  # -------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: s006-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------
+  # API — server HTTP Fiber. Publish 8080:3000 supaya host memakai
+  # port 8080 sementara di dalam container aplikasi Listen di 3000.
+  # -------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: s006-api
+    command: ["-role=api"]
+    environment:
+      APP_PORT: "3000"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi di .env}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-praktikum_backend}
+      DB_SSLMODE: disable
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DATABASE: ${MONGO_DATABASE:-praktikum_backend}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: "0"
+      WORKER_CONCURRENCY: "5"
+      RELAY_INTERVAL_MS: "1000"
+      RELAY_BATCH: "100"
+      MAILER_DELAY_MS: "1500"
+    ports:
+      - "8080:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------
+  # Worker — proses Asynq (kirim notifikasi) + relay outbox.
+  # Binary sama dengan api, hanya peran (-role=worker) yang beda.
+  # -------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: s006-worker
+    command: ["-role=worker"]
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi di .env}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-praktikum_backend}
+      DB_SSLMODE: disable
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DATABASE: ${MONGO_DATABASE:-praktikum_backend}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: "0"
+      WORKER_CONCURRENCY: "5"
+      RELAY_INTERVAL_MS: "1000"
+      RELAY_BATCH: "100"
+      MAILER_DELAY_MS: "1500"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "/app/app"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  # Named volume: data PostgreSQL tetap ada setelah `docker compose down`.
+  postgres_data:
+  mongo_data:
