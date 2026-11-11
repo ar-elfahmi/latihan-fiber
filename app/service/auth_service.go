@@ -18,6 +18,10 @@ type AuthService struct {
 	Repo   repository.UserRepository
 	RBAC   repository.RBACRepository // saat ini unused; disimpan untuk kompatibilitas wiring
 	Tokens *helper.JWTManager        // penerbit token JWT (helper.NewJWTManager)
+
+	// Limiter membatasi percobaan login gagal per IP (Modul 12: 5 kali
+	// gagal per menit per IP -> 429). Bila nil, dipakai limiter bawaan.
+	Limiter *helper.LoginLimiter
 }
 
 func (s AuthService) Register(c *fiber.Ctx) error {
@@ -59,14 +63,28 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 		return helper.Validation(errs)
 	}
 
-	// 3. Cari akun. Salah username ATAU salah password: pesannya sama,
+	// 3. Rate limit: percobaan login dibatasi per IP (Modul 12). Bodies
+	//    rusak / input tidak valid tidak dihitung sebagai kegagalan.
+	//    rusak / input tidak valid tidak dihitung sebagai kegagalan.
+	limiter := s.Limiter
+	if limiter == nil {
+		limiter = helper.DefaultLoginLimiter()
+	}
+	ip := c.IP()
+	if !limiter.Allow(ip) {
+		return helper.TooManyRequests("Terlalu banyak percobaan login")
+	}
+
+	// 4. Cari akun. Salah username ATAU salah password: pesannya sama,
 	//    supaya orang lain tidak tahu field mana yang keliru.
 	u, err := s.Repo.GetByUsername(c.Context(), req.Username)
 	if err != nil || !CheckPassword(req.Password, u.PasswordHash) {
+		limiter.RecordFailure(ip)
 		return helper.Unauthorized("username atau password salah")
 	}
+	limiter.Reset(ip)
 
-	// 4. Buat token dan kirimkan ke client.
+	// 5. Buat token dan kirimkan ke client.
 	if s.Tokens == nil {
 		return helper.Internal(errors.New("penerbit token JWT belum dikonfigurasi"))
 	}

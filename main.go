@@ -101,7 +101,12 @@ func main() {
 	svc := service.Services{
 		Student:  service.StudentService{Repo: studentRepo},
 		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
-		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Tokens: helper.NewJWTManager(secret)},
+		Auth: service.AuthService{
+			Repo:    userRepo,
+			RBAC:    rbacRepo,
+			Tokens:  helper.NewJWTManager(secret),
+			Limiter: helper.NewLoginLimiter(helper.DefaultLoginLimit, helper.DefaultLoginWindow),
+		},
 		Course:   service.CourseService{Repo: courseRepo},
 		User:     service.UserService{Repo: userRepo},
 		Portfolio: service.PortfolioService{
