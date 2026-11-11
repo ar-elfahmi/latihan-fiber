@@ -9,7 +9,7 @@ import (
 )
 
 // TestMaxCreditsPerSemester menjaga angka batas SKS tetap satu sumber
-// kebenaran: 24. Angka ini juga ditulis di domain.MaxCreditsPerSemester.
+// kebenaran: 24. Angka ini juga ditulis di model.MaxCreditsPerSemester.
 func TestMaxCreditsPerSemester(t *testing.T) {
 	t.Parallel()
 
