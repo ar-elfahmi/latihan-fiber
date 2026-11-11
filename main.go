@@ -70,10 +70,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	studentRepo := repository.StudentRepository{DB: db}
-	prestasiRepo := repository.PrestasiRepository{DB: db}
+	studentRepo := repository.PostgresStudentRepository{DB: db}
+	prestasiRepo := repository.PostgresPrestasiRepository{DB: db}
 	userRepo := repository.PostgresUserRepository{DB: db}
-	rbacRepo := repository.RBACRepository{DB: db}
+	rbacRepo := repository.PostgresRBACRepository{DB: db}
 
 	secret := appCfg.JWTSecret
 	inspector := asynq.NewInspector(appCfg.Redis)
@@ -94,8 +94,8 @@ func main() {
 			StudentRepo: studentRepo,
 		},
 		Notification: service.NotificationService{
-			Notifications: repository.NotificationRepository{DB: db},
-			Outbox:        repository.OutboxRepository{DB: db},
+			Notifications: repository.PostgresNotificationRepository{DB: db},
+			Outbox:        repository.PostgresOutboxRepository{DB: db},
 			Inspector:     inspector,
 		},
 	}

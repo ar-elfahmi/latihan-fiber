@@ -18,6 +18,7 @@ import (
 
 type OutboxRelay struct {
 	DB       *pgxpool.Pool
+	Outbox   repository.OutboxRepository
 	Queue    *asynq.Client
 	Interval time.Duration
 	Batch    int
@@ -51,12 +52,11 @@ func (r OutboxRelay) RelayOnce(ctx context.Context) (int, error) {
 	var enqueueErr error
 
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
-		outbox := repository.OutboxRepository{DB: tx}
+		outbox := r.Outbox.WithTx(tx)
 		events, err := outbox.FetchUnpublished(ctx, r.AfterID, r.Batch)
 		if err != nil {
 			return err
 		}
-
 		ids := make([]int64, 0, len(events))
 		for _, event := range events {
 			if enqueueErr = r.publish(ctx, event); enqueueErr != nil {

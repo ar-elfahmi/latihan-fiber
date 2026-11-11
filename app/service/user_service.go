@@ -11,7 +11,9 @@ import (
 	"latihan-fiber/helper"
 )
 
-// UserService adalah struct konkret untuk entity users.
+// UserService adalah service untuk entity users.
+// Repository disimpan lewat interface repository.UserRepository
+// (lihat app/repository/interfaces.go) sehingga bisa diganti fake di test.
 // Saat ini baru berisi List; method lain (Create/Replace/Patch/Delete)
 // ditambahkan saat register/CRUD dibutuhkan.
 type UserService struct {

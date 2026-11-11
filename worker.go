@@ -38,8 +38,8 @@ func startWorker(ctx context.Context, pool *pgxpool.Pool) (func(), error) {
 
 	worker := service.NotificationWorker{
 		Users:         repository.PostgresUserRepository{DB: pool},
+		Notifications: repository.PostgresNotificationRepository{DB: pool},
 		Pool:          pool,
-		Notifications: repository.NotificationRepository{DB: pool},
 		Mailer:        mailer,
 	}
 	mux := asynq.NewServeMux()
@@ -52,6 +52,7 @@ func startWorker(ctx context.Context, pool *pgxpool.Pool) (func(), error) {
 	client := asynq.NewClient(config.RedisOpt())
 	relay := service.OutboxRelay{
 		DB:       pool,
+		Outbox:   repository.PostgresOutboxRepository{DB: pool},
 		Queue:    client,
 		Interval: time.Duration(interval) * time.Millisecond,
 		Batch:    batch,

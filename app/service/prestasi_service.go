@@ -10,7 +10,8 @@ import (
 	"latihan-fiber/helper"
 )
 
-// PrestasiService adalah struct konkret untuk tabel prestasi.
+// PrestasiService adalah service untuk tabel prestasi.
+// Repository disimpan lewat interface (lihat app/repository/interfaces.go).
 type PrestasiService struct {
 	Repo    repository.PrestasiRepository
 	Student repository.StudentRepository

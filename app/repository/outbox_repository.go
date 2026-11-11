@@ -18,15 +18,18 @@ type DBTX interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-type OutboxRepository struct {
+// PostgresOutboxRepository adalah implementasi OutboxRepository di atas
+// PostgreSQL. Field DB bisa pool atau transaksi berjalan.
+type PostgresOutboxRepository struct {
 	DB DBTX
 }
 
-func (r OutboxRepository) WithTx(tx pgx.Tx) OutboxRepository {
-	return OutboxRepository{DB: tx}
+// WithTx mengembalikan repository yang terikat ke transaksi berjalan.
+func (r PostgresOutboxRepository) WithTx(tx pgx.Tx) OutboxRepository {
+	return PostgresOutboxRepository{DB: tx}
 }
 
-func (r OutboxRepository) Insert(ctx context.Context, eventType string, event model.EnrollmentEvent) error {
+func (r PostgresOutboxRepository) Insert(ctx context.Context, eventType string, event model.EnrollmentEvent) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -35,7 +38,7 @@ func (r OutboxRepository) Insert(ctx context.Context, eventType string, event mo
 	return err
 }
 
-func (r OutboxRepository) FetchUnpublished(ctx context.Context, afterID int64, limit int) ([]model.OutboxEvent, error) {
+func (r PostgresOutboxRepository) FetchUnpublished(ctx context.Context, afterID int64, limit int) ([]model.OutboxEvent, error) {
 	rows, err := r.DB.Query(ctx, `SELECT id, event_type, payload, created_at
 		FROM outbox WHERE published_at IS NULL AND id > $1
 		ORDER BY id LIMIT $2 FOR UPDATE SKIP LOCKED`, afterID, limit)
@@ -54,12 +57,12 @@ func (r OutboxRepository) FetchUnpublished(ctx context.Context, afterID int64, l
 	return events, rows.Err()
 }
 
-func (r OutboxRepository) MarkPublished(ctx context.Context, ids []int64) error {
+func (r PostgresOutboxRepository) MarkPublished(ctx context.Context, ids []int64) error {
 	_, err := r.DB.Exec(ctx, "UPDATE outbox SET published_at = NOW() WHERE id = ANY($1)", ids)
 	return err
 }
 
-func (r OutboxRepository) Stats(ctx context.Context) (int, int, time.Duration, error) {
+func (r PostgresOutboxRepository) Stats(ctx context.Context) (int, int, time.Duration, error) {
 	var pending, published int
 	var seconds float64
 	err := r.DB.QueryRow(ctx, `SELECT COUNT(*) FILTER (WHERE published_at IS NULL),

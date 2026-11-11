@@ -9,14 +9,14 @@ import (
 
 // RBACRepository membaca peta peran -> permission dari database.
 // Setiap query berparameter; nama tabel/kolom hardcoded (bukan input user).
-type RBACRepository struct {
+type PostgresRBACRepository struct {
 	DB *pgxpool.Pool
 }
 
 // GetPermissionsByUserID mengembalikan himpunan permission (nama) yang dimiliki user.
 // Hasil dipakai middleware RequirePermission untuk O(1) lookup.
 // Kalau user tak punya role, hasilnya kosong (bukan error) -> fail closed di middleware.
-func (r RBACRepository) GetPermissionsByUserID(ctx context.Context, userID int) (map[string]bool, error) {
+func (r PostgresRBACRepository) GetPermissionsByUserID(ctx context.Context, userID int) (map[string]bool, error) {
 	rows, err := r.DB.Query(ctx, `
 		SELECT DISTINCT rp.permission_name
 		FROM role_permissions rp
@@ -44,7 +44,7 @@ func (r RBACRepository) GetPermissionsByUserID(ctx context.Context, userID int) 
 
 // GetRolesByUserID mengembalikan daftar nama role untuk user.
 // Dipakai diagnostik / laporan; tidak wajib untuk hot-path.
-func (r RBACRepository) GetRolesByUserID(ctx context.Context, userID int) ([]string, error) {
+func (r PostgresRBACRepository) GetRolesByUserID(ctx context.Context, userID int) ([]string, error) {
 	rows, err := r.DB.Query(ctx, `
 		SELECT role_name FROM user_roles WHERE user_id = $1 ORDER BY role_name
 	`, userID)

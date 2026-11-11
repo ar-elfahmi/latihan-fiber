@@ -51,7 +51,7 @@ func (r PostgresCourseRepository) List(ctx context.Context) ([]model.Course, err
 
 func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID int) (model.Course, error) {
 	var course model.Course
-	outbox := OutboxRepository{DB: r.DB}
+	outbox := PostgresOutboxRepository{DB: r.DB}
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, courseID, courseID); err != nil {
 			return err
@@ -83,7 +83,7 @@ func (r PostgresCourseRepository) Drop(ctx context.Context, userID, courseID int
 		if err != nil {
 			return err
 		}
-		return (OutboxRepository{DB: r.DB}).WithTx(tx).Insert(ctx, model.EventEnrollmentDropped, model.EnrollmentEvent{
+		return (PostgresOutboxRepository{DB: r.DB}).WithTx(tx).Insert(ctx, model.EventEnrollmentDropped, model.EnrollmentEvent{
 			UserID: userID, CourseID: class.ID, CourseCode: class.Code, CourseName: class.Name,
 		})
 	})
@@ -106,7 +106,7 @@ func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID
 		if err != nil {
 			return err
 		}
-		outbox := OutboxRepository{DB: r.DB}
+		outbox := PostgresOutboxRepository{DB: r.DB}
 		event := model.EnrollmentEvent{
 			UserID: userID, CourseID: course.ID, CourseCode: course.Code, CourseName: course.Name,
 			FromCourseCode: from.Code, FromCourseName: from.Name,
@@ -194,7 +194,7 @@ func (r PostgresCourseRepository) UpdateQuota(ctx context.Context, courseID int,
 		if err != nil {
 			return err
 		}
-		return (OutboxRepository{DB: tx}).Insert(ctx, model.EventCourseQuotaChanged, model.EnrollmentEvent{
+		return (PostgresOutboxRepository{DB: tx}).Insert(ctx, model.EventCourseQuotaChanged, model.EnrollmentEvent{
 			CourseID: course.ID, CourseCode: course.Code, CourseName: course.Name,
 			Quota: course.Quota, RecipientIDs: recipients,
 		})
