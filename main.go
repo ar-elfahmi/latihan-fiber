@@ -75,6 +75,17 @@ func main() {
 	userRepo := repository.PostgresUserRepository{DB: db}
 	rbacRepo := repository.PostgresRBACRepository{DB: db}
 
+	// Aturan domain KRS (batas SKS) berasal dari app/service dan diinjeksi ke
+	// repository supaya app/repository tidak mengimpor app/service (siklus
+	// import) tapi tetap memakai implementasi aturan yang sama.
+	courseRepo, err := repository.NewPostgresCourseRepository(db, repository.CreditRules{
+		WithinCreditLimit: service.WithinCreditLimit,
+		CreditsAfterSwap:  service.CreditsAfterSwap,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	secret := appCfg.JWTSecret
 	inspector := asynq.NewInspector(appCfg.Redis)
 	defer func() {
@@ -87,7 +98,7 @@ func main() {
 		Student:  service.StudentService{Repo: studentRepo},
 		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
 		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Tokens: helper.NewJWTManager(secret)},
-		Course:   service.CourseService{Repo: repository.PostgresCourseRepository{DB: db}},
+		Course:   service.CourseService{Repo: courseRepo},
 		User:     service.UserService{Repo: userRepo},
 		Portfolio: service.PortfolioService{
 			Repo:        portfolioRepo,

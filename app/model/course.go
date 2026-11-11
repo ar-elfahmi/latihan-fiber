@@ -2,6 +2,12 @@ package model
 
 import "time"
 
+// MaxCreditsPerSemester adalah batas SKS yang boleh diambil satu mahasiswa
+// dalam satu semester. Ini satu-satunya tempat angka batas SKS ditulis di
+// kode produksi; app/service mengeksposnya ulang sebagai
+// service.MaxCreditsPerSemester.
+const MaxCreditsPerSemester = 24
+
 type Course struct {
 	ID            int       `json:"id"`
 	Code          string    `json:"code"`
