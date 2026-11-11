@@ -17,7 +17,7 @@ import (
 type AuthService struct {
 	Repo   repository.UserRepository
 	RBAC   repository.RBACRepository // saat ini unused; disimpan untuk kompatibilitas wiring
-	Secret []byte                    // kunci tanda tangan token, dibaca dari JWT_SECRET di .env
+	Tokens *helper.JWTManager        // penerbit token JWT (helper.NewJWTManager)
 }
 
 func (s AuthService) Register(c *fiber.Ctx) error {
@@ -67,7 +67,10 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	}
 
 	// 4. Buat token dan kirimkan ke client.
-	token, err := MakeToken(u.ID, u.Username, s.Secret)
+	if s.Tokens == nil {
+		return helper.Internal(errors.New("penerbit token JWT belum dikonfigurasi"))
+	}
+	token, err := s.Tokens.GenerateAccessToken(u.ID, u.Username)
 	if err != nil {
 		return helper.Internal(err)
 	}
