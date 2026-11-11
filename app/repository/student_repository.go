@@ -12,7 +12,7 @@ import (
 	"latihan-fiber/app/model"
 )
 
-type StudentRepository struct {
+type PostgresStudentRepository struct {
 	// DB adalah connection pool; aman untuk request bersamaan.
 	DB *pgxpool.Pool
 }
@@ -25,7 +25,7 @@ var sortColumns = map[string]bool{
 
 // List mengambil halaman pertama student dengan urutan id DESC.
 // Limit + 1 dipakai untuk deteksi has_more di service.
-func (r StudentRepository) List(ctx context.Context, limit int) ([]model.Student, error) {
+func (r PostgresStudentRepository) List(ctx context.Context, limit int) ([]model.Student, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
@@ -44,7 +44,7 @@ func (r StudentRepository) List(ctx context.Context, limit int) ([]model.Student
 
 // FindAfterCursor mengambil daftar student dengan id < cursorID,
 // urutan id DESC. Field cursorTime diabaikan (student pakai id saja).
-func (r StudentRepository) FindAfterCursor(ctx context.Context, cursorID, limit int) ([]model.Student, error) {
+func (r PostgresStudentRepository) FindAfterCursor(ctx context.Context, cursorID, limit int) ([]model.Student, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
@@ -102,7 +102,7 @@ func buildWhere(q model.ListQuery) (string, []any) {
 
 // GetAllWithFilter tetap dipakai path lain yang butuh search/is_active.
 // Cursor path pakai List + FindAfterCursor.
-func (r StudentRepository) GetAllWithFilter(ctx context.Context, q model.ListQuery, limit int) ([]model.Student, error) {
+func (r PostgresStudentRepository) GetAllWithFilter(ctx context.Context, q model.ListQuery, limit int) ([]model.Student, error) {
 	where, args := buildWhere(q)
 	rows, err := r.DB.Query(ctx, fmt.Sprintf(`
 		SELECT id, nim, name, grade, is_active, owner_id, created_at
@@ -119,7 +119,7 @@ func (r StudentRepository) GetAllWithFilter(ctx context.Context, q model.ListQue
 
 // GetByID mengambil satu mahasiswa berdasarkan id.
 // Mengembalikan ErrNotFound bila tidak ada baris.
-func (r StudentRepository) GetByID(ctx context.Context, id int) (model.Student, error) {
+func (r PostgresStudentRepository) GetByID(ctx context.Context, id int) (model.Student, error) {
 	var s model.Student
 	err := r.DB.QueryRow(ctx,
 		`SELECT id, nim, name, grade, is_active, owner_id, created_at FROM students WHERE id = $1`,
@@ -139,7 +139,7 @@ func (r StudentRepository) GetByID(ctx context.Context, id int) (model.Student, 
 // Modul 6: owner_id dikirim dari service (bukan body). Kalau nil ->
 // disimpan NULL (record "global" yang hanya boleh diakses via :any).
 // Mengembalikan ErrDuplicate bila NIM sudah ada.
-func (r StudentRepository) Create(ctx context.Context, s model.Student) (model.Student, error) {
+func (r PostgresStudentRepository) Create(ctx context.Context, s model.Student) (model.Student, error) {
 	// Parameter nil untuk owner akan disimpan pgx sebagai NULL di kolom
 	// owner_id (record "belum ada pemilik"). Parameter yang dipakai:
 	// $1=NIM, $2=name, $3=grade, $4=is_active, $5=*int (owner) atau nil.
@@ -166,7 +166,7 @@ func (r StudentRepository) Create(ctx context.Context, s model.Student) (model.S
 }
 
 // Replace memperbarui seluruh field mahasiswa. Mengembalikan ErrNotFound / ErrDuplicate.
-func (r StudentRepository) Replace(ctx context.Context, s model.Student) (model.Student, error) {
+func (r PostgresStudentRepository) Replace(ctx context.Context, s model.Student) (model.Student, error) {
 	err := r.DB.QueryRow(ctx,
 		`UPDATE students
 		 SET nim = $1, name = $2, grade = $3, is_active = $4
@@ -188,7 +188,7 @@ func (r StudentRepository) Replace(ctx context.Context, s model.Student) (model.
 }
 
 // Delete menghapus mahasiswa berdasarkan id.
-func (r StudentRepository) Delete(ctx context.Context, id int) error {
+func (r PostgresStudentRepository) Delete(ctx context.Context, id int) error {
 	tag, err := r.DB.Exec(ctx, `DELETE FROM students WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("hapus student: %w", err)

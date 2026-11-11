@@ -10,7 +10,7 @@ import (
 	"latihan-fiber/app/model"
 )
 
-type PrestasiRepository struct {
+type PostgresPrestasiRepository struct {
 	// DB adalah connection pool; aman untuk request bersamaan.
 	DB *pgxpool.Pool
 }
@@ -39,7 +39,7 @@ func buildPrestasiWhere(q model.ListQuery) (string, []any) {
 }
 
 // GetAll mengambil daftar prestasi (paginasi + filter + urutan).
-func (r PrestasiRepository) GetAll(ctx context.Context, q model.ListQuery) ([]model.Prestasi, int, error) {
+func (r PostgresPrestasiRepository) GetAll(ctx context.Context, q model.ListQuery) ([]model.Prestasi, int, error) {
 	where, args := buildPrestasiWhere(q)
 
 	var total int
@@ -79,9 +79,8 @@ func (r PrestasiRepository) GetAll(ctx context.Context, q model.ListQuery) ([]mo
 	return out, total, rows.Err()
 }
 
-
 // GetByStudentID mengambil semua prestasi milik seorang mahasiswa.
-func (r PrestasiRepository) GetByStudentID(ctx context.Context, studentID int) ([]model.Prestasi, error) {
+func (r PostgresPrestasiRepository) GetByStudentID(ctx context.Context, studentID int) ([]model.Prestasi, error) {
 	rows, err := r.DB.Query(ctx,
 		`SELECT id, student_id, keterangan, juara FROM prestasi WHERE student_id = $1 ORDER BY id`,
 		studentID,
@@ -104,7 +103,7 @@ func (r PrestasiRepository) GetByStudentID(ctx context.Context, studentID int) (
 
 // Create menyimpan prestasi baru. Mengembalikan ErrStudentNotFound bila
 // student_id tidak ada (pelanggaran foreign key).
-func (r PrestasiRepository) Create(ctx context.Context, p model.Prestasi) (model.Prestasi, error) {
+func (r PostgresPrestasiRepository) Create(ctx context.Context, p model.Prestasi) (model.Prestasi, error) {
 	err := r.DB.QueryRow(ctx,
 		`INSERT INTO prestasi (student_id, keterangan, juara)
 		 VALUES ($1, $2, $3)
@@ -120,4 +119,3 @@ func (r PrestasiRepository) Create(ctx context.Context, p model.Prestasi) (model
 	}
 	return p, nil
 }
-

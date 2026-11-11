@@ -15,8 +15,9 @@ import (
 // studentCSVHeaders adalah urutan kolom pada response CSV.
 var studentCSVHeaders = []string{"id", "nim", "name", "is_active", "created_at"}
 
-// StudentService adalah struct konkret (tanpa interface) sesuai gaya
-// landing-page. Ia memegang repository langsung lewat field Repo.
+// StudentService adalah struct service untuk entity students.
+// Repository disimpan lewat interface repository.StudentRepository
+// (lihat app/repository/interfaces.go) sehingga bisa diganti fake di test.
 type StudentService struct {
 	Repo repository.StudentRepository
 }

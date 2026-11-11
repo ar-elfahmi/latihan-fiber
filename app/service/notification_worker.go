@@ -9,6 +9,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"latihan-fiber/app/model"
 	"latihan-fiber/app/repository"
@@ -18,7 +19,10 @@ import (
 type NotificationWorker struct {
 	Users         repository.UserRepository
 	Notifications repository.NotificationRepository
-	Mailer        helper.Mailer
+	// Pool dipakai untuk membuka transaksi claim+mail. Repo di atas hanya
+	// interface, jadi pool tidak bisa diambil dari sana.
+	Pool   *pgxpool.Pool
+	Mailer helper.Mailer
 }
 
 func (w NotificationWorker) HandleSend(ctx context.Context, task *asynq.Task) error {
@@ -59,7 +63,7 @@ func (w NotificationWorker) send(ctx context.Context, job model.NotificationJob,
 	}
 
 	alreadySent := false
-	err = pgx.BeginFunc(ctx, w.Users.DB, func(tx pgx.Tx) error {
+	err = pgx.BeginFunc(ctx, w.Pool, func(tx pgx.Tx) error {
 		claimed, err := w.Notifications.WithTx(tx).Claim(ctx, model.Notification{
 			OutboxID: job.OutboxID, UserID: user.ID, Channel: "email",
 			Subject: message.Subject, Body: message.Body,
