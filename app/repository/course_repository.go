@@ -20,7 +20,7 @@ var (
 
 const courseColumns = "id, code, name, credits, quota, enrolled_count, version, created_at"
 
-type CourseRepository struct {
+type PostgresCourseRepository struct {
 	DB *pgxpool.Pool
 }
 
@@ -31,7 +31,7 @@ func scanCourse(row pgx.Row) (model.Course, error) {
 	return course, err
 }
 
-func (r CourseRepository) List(ctx context.Context) ([]model.Course, error) {
+func (r PostgresCourseRepository) List(ctx context.Context) ([]model.Course, error) {
 	rows, err := r.DB.Query(ctx, "SELECT "+courseColumns+" FROM courses ORDER BY id")
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (r CourseRepository) List(ctx context.Context) ([]model.Course, error) {
 	return courses, rows.Err()
 }
 
-func (r CourseRepository) Enroll(ctx context.Context, userID, courseID int) (model.Course, error) {
+func (r PostgresCourseRepository) Enroll(ctx context.Context, userID, courseID int) (model.Course, error) {
 	var course model.Course
 	outbox := OutboxRepository{DB: r.DB}
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
@@ -71,7 +71,7 @@ func (r CourseRepository) Enroll(ctx context.Context, userID, courseID int) (mod
 	return course, err
 }
 
-func (r CourseRepository) Drop(ctx context.Context, userID, courseID int) error {
+func (r PostgresCourseRepository) Drop(ctx context.Context, userID, courseID int) error {
 	return pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, courseID, courseID); err != nil {
 			return err
@@ -89,7 +89,7 @@ func (r CourseRepository) Drop(ctx context.Context, userID, courseID int) error 
 	})
 }
 
-func (r CourseRepository) Swap(ctx context.Context, userID, fromID, toID int) (model.Course, error) {
+func (r PostgresCourseRepository) Swap(ctx context.Context, userID, fromID, toID int) (model.Course, error) {
 	var course model.Course
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
 		if err := lockKRS(ctx, tx, userID, fromID, toID); err != nil {
@@ -171,7 +171,7 @@ func drop(ctx context.Context, tx pgx.Tx, userID, courseID int) error {
 	return err
 }
 
-func (r CourseRepository) UpdateQuota(ctx context.Context, courseID int, req model.UpdateQuotaRequest) (model.Course, error) {
+func (r PostgresCourseRepository) UpdateQuota(ctx context.Context, courseID int, req model.UpdateQuotaRequest) (model.Course, error) {
 	var course model.Course
 	err := pgx.BeginFunc(ctx, r.DB, func(tx pgx.Tx) error {
 		var err error

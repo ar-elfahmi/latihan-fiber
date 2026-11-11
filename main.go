@@ -72,7 +72,7 @@ func main() {
 
 	studentRepo := repository.StudentRepository{DB: db}
 	prestasiRepo := repository.PrestasiRepository{DB: db}
-	userRepo := repository.UserRepository{DB: db}
+	userRepo := repository.PostgresUserRepository{DB: db}
 	rbacRepo := repository.RBACRepository{DB: db}
 
 	secret := appCfg.JWTSecret
@@ -87,7 +87,7 @@ func main() {
 		Student:  service.StudentService{Repo: studentRepo},
 		Prestasi: service.PrestasiService{Repo: prestasiRepo, Student: studentRepo},
 		Auth:     service.AuthService{Repo: userRepo, RBAC: rbacRepo, Tokens: helper.NewJWTManager(secret)},
-		Course:   service.CourseService{Repo: repository.CourseRepository{DB: db}},
+		Course:   service.CourseService{Repo: repository.PostgresCourseRepository{DB: db}},
 		User:     service.UserService{Repo: userRepo},
 		Portfolio: service.PortfolioService{
 			Repo:        portfolioRepo,

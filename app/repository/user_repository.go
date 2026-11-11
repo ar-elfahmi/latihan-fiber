@@ -13,12 +13,12 @@ import (
 )
 
 // UserRepository membaca akun login dari tabel users.
-type UserRepository struct {
+type PostgresUserRepository struct {
 	// DB adalah connection pool yang sama dengan repository lain.
 	DB *pgxpool.Pool
 }
 
-func (r UserRepository) Register(ctx context.Context, req model.RegisterRequest, passwordHash string) (int, error) {
+func (r PostgresUserRepository) Register(ctx context.Context, req model.RegisterRequest, passwordHash string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(ctx, `WITH account AS (
 		INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)
@@ -35,7 +35,7 @@ func (r UserRepository) Register(ctx context.Context, req model.RegisterRequest,
 
 // GetByUsername mengambil satu akun berdasarkan username.
 // Mengembalikan ErrNotFound bila username tidak terdaftar.
-func (r UserRepository) GetByUsername(ctx context.Context, username string) (model.User, error) {
+func (r PostgresUserRepository) GetByUsername(ctx context.Context, username string) (model.User, error) {
 	var u model.User
 	err := r.DB.QueryRow(ctx,
 		`SELECT id, username, password_hash, created_at FROM users WHERE username = $1`,
@@ -52,7 +52,7 @@ func (r UserRepository) GetByUsername(ctx context.Context, username string) (mod
 }
 
 // FindByID mengambil identitas akun yang diperlukan untuk notifikasi.
-func (r UserRepository) FindByID(ctx context.Context, id int) (model.User, error) {
+func (r PostgresUserRepository) FindByID(ctx context.Context, id int) (model.User, error) {
 	var user model.User
 	err := r.DB.QueryRow(ctx, `SELECT id, username, COALESCE(email, '') FROM users WHERE id = $1`, id).
 		Scan(&user.ID, &user.Username, &user.Email)
@@ -64,7 +64,7 @@ func (r UserRepository) FindByID(ctx context.Context, id int) (model.User, error
 
 // List mengambil halaman pertama user dengan urutan created_at DESC,
 // id DESC. Limit +1 dipakai untuk deteksi has_more di service.
-func (r UserRepository) List(ctx context.Context, limit int) ([]model.User, error) {
+func (r PostgresUserRepository) List(ctx context.Context, limit int) ([]model.User, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
@@ -86,7 +86,7 @@ func (r UserRepository) List(ctx context.Context, limit int) ([]model.User, erro
 //
 // Arah ORDER BY harus cocok dengan index users_created_at_id_desc_idx
 // (DESC). Kalau terbalik, planner memilih Seq Scan (Modul 7 bug #8).
-func (r UserRepository) FindAfterCursor(ctx context.Context, cursor time.Time, cursorID, limit int) ([]model.User, error) {
+func (r PostgresUserRepository) FindAfterCursor(ctx context.Context, cursor time.Time, cursorID, limit int) ([]model.User, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}

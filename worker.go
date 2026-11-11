@@ -37,7 +37,8 @@ func startWorker(ctx context.Context, pool *pgxpool.Pool) (func(), error) {
 	}
 
 	worker := service.NotificationWorker{
-		Users:         repository.UserRepository{DB: pool},
+		Users:         repository.PostgresUserRepository{DB: pool},
+		Pool:          pool,
 		Notifications: repository.NotificationRepository{DB: pool},
 		Mailer:        mailer,
 	}
