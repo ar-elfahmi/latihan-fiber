@@ -8,6 +8,7 @@ latihan-fiber.exe
 latihan-fiber.sql
 run-tests.ps1
 run-tests.sh
+coverage.out
 # --- Alur kerja lokal, tidak di-version-control (docs/DECISIONS.md D-005) ---
 GUIDELINE.md
 AGENTS.md
